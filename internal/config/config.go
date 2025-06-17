@@ -13,22 +13,22 @@ import (
 
 // Config represents the main configuration structure
 type Config struct {
-	Global        GlobalConfig  `yaml:"global"`
-	Checks        []CheckConfig `yaml:"checks"`
+	Global        GlobalConfig   `yaml:"global"`
+	Checks        []CheckConfig  `yaml:"checks"`
 	Notifications Notifications `yaml:"notifications"`
 }
 
 // GlobalConfig contains global settings
 type GlobalConfig struct {
-	MaxWorkers      int           `yaml:"max_workers"`
-	DefaultTimeout  time.Duration `yaml:"default_timeout"`
-	DefaultInterval time.Duration `yaml:"default_interval"`
-	StoragePath     string        `yaml:"storage_path"`
-	LogLevel        string        `yaml:"log_level"`
-	DisableColors   bool          `yaml:"disable_colors"`
-	UserAgent       string        `yaml:"user_agent"`
-	MaxRetries      int           `yaml:"max_retries"`
-	RetryDelay      time.Duration `yaml:"retry_delay"`
+	MaxWorkers        int           `yaml:"max_workers"`
+	DefaultTimeout    time.Duration `yaml:"default_timeout"`
+	DefaultInterval   time.Duration `yaml:"default_interval"`
+	StoragePath       string        `yaml:"storage_path"`
+	LogLevel          string        `yaml:"log_level"`
+	DisableColors     bool          `yaml:"disable_colors"`
+	UserAgent         string        `yaml:"user_agent"`
+	MaxRetries        int           `yaml:"max_retries"`
+	RetryDelay        time.Duration `yaml:"retry_delay"`
 }
 
 // CheckConfig wraps the types.CheckConfig with YAML tags
@@ -48,16 +48,16 @@ type Notifications struct {
 
 // EmailConfig contains email notification settings
 type EmailConfig struct {
-	Enabled  bool     `yaml:"enabled"`
-	SMTPHost string   `yaml:"smtp_host"`
-	SMTPPort int      `yaml:"smtp_port"`
-	Username string   `yaml:"username"`
-	Password string   `yaml:"password"`
-	From     string   `yaml:"from"`
-	To       []string `yaml:"to"`
-	Subject  string   `yaml:"subject"`
-	Template string   `yaml:"template"`
-	TLS      bool     `yaml:"tls"`
+	Enabled    bool              `yaml:"enabled"`
+	SMTPHost   string            `yaml:"smtp_host"`
+	SMTPPort   int               `yaml:"smtp_port"`
+	Username   string            `yaml:"username"`
+	Password   string            `yaml:"password"`
+	From       string            `yaml:"from"`
+	To         []string          `yaml:"to"`
+	Subject    string            `yaml:"subject"`
+	Template   string            `yaml:"template"`
+	TLS        bool              `yaml:"tls"`
 }
 
 // SlackConfig contains Slack notification settings
@@ -89,7 +89,7 @@ type DiscordConfig struct {
 
 // TelegramConfig contains Telegram bot settings
 type TelegramConfig struct {
-	Enabled  bool   `yaml:"enabled"`
+	Enabled bool   `yaml:"enabled"`
 	BotToken string `yaml:"bot_token"`
 	ChatID   string `yaml:"chat_id"`
 }
@@ -137,23 +137,23 @@ func DefaultConfig() *Config {
 func LoadConfig(filePath string) (*Config, error) {
 	// Start with defaults
 	config := DefaultConfig()
-
+	
 	// If no file specified, return defaults
 	if filePath == "" {
 		return config, nil
 	}
-
+	
 	// Check if file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("config file not found: %s", filePath)
 	}
-
+	
 	// Read file
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
-
+	
 	// Parse based on file extension
 	ext := strings.ToLower(filepath.Ext(filePath))
 	switch ext {
@@ -165,18 +165,18 @@ func LoadConfig(filePath string) (*Config, error) {
 	default:
 		return nil, fmt.Errorf("unsupported config file format: %s (supported: .yaml, .yml, .json)", ext)
 	}
-
+	
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
-
+	
 	// Validate and apply defaults
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
-
+	
 	config.ApplyDefaults()
-
+	
 	return config, nil
 }
 
@@ -186,31 +186,31 @@ func (c *Config) Validate() error {
 	if c.Global.MaxWorkers <= 0 {
 		return fmt.Errorf("max_workers must be greater than 0")
 	}
-
+	
 	if c.Global.DefaultTimeout <= 0 {
 		return fmt.Errorf("default_timeout must be greater than 0")
 	}
-
+	
 	if c.Global.DefaultInterval <= 0 {
 		return fmt.Errorf("default_interval must be greater than 0")
 	}
-
+	
 	// Validate checks
 	if len(c.Checks) == 0 {
 		return fmt.Errorf("at least one check must be defined")
 	}
-
+	
 	for i, check := range c.Checks {
 		if err := c.validateCheck(check, i); err != nil {
 			return err
 		}
 	}
-
+	
 	// Validate notifications
 	if err := c.validateNotifications(); err != nil {
 		return err
 	}
-
+	
 	return nil
 }
 
@@ -218,11 +218,11 @@ func (c *Config) validateCheck(check CheckConfig, index int) error {
 	if check.Name == "" {
 		return fmt.Errorf("check[%d]: name is required", index)
 	}
-
+	
 	if check.URL == "" {
 		return fmt.Errorf("check[%d]: URL is required", index)
 	}
-
+	
 	// Validate URL format based on type
 	switch check.Type {
 	case types.CheckTypeHTTP:
@@ -234,19 +234,19 @@ func (c *Config) validateCheck(check CheckConfig, index int) error {
 			return fmt.Errorf("check[%d]: TCP checks should use host:port format", index)
 		}
 	}
-
+	
 	if check.Interval <= 0 {
 		return fmt.Errorf("check[%d]: interval must be greater than 0", index)
 	}
-
+	
 	if check.Timeout <= 0 {
 		return fmt.Errorf("check[%d]: timeout must be greater than 0", index)
 	}
-
+	
 	if check.Timeout >= check.Interval {
 		return fmt.Errorf("check[%d]: timeout must be less than interval", index)
 	}
-
+	
 	return nil
 }
 
@@ -263,21 +263,21 @@ func (c *Config) validateNotifications() error {
 			return fmt.Errorf("email notifications enabled but no recipients configured")
 		}
 	}
-
+	
 	// Validate Slack config
 	if c.Notifications.Slack.Enabled {
 		if c.Notifications.Slack.WebhookURL == "" {
 			return fmt.Errorf("slack notifications enabled but webhook_url not configured")
 		}
 	}
-
+	
 	// Validate webhook config
 	if c.Notifications.Webhook.Enabled {
 		if c.Notifications.Webhook.URL == "" {
 			return fmt.Errorf("webhook notifications enabled but url not configured")
 		}
 	}
-
+	
 	return nil
 }
 
@@ -285,7 +285,7 @@ func (c *Config) validateNotifications() error {
 func (c *Config) ApplyDefaults() {
 	for i := range c.Checks {
 		check := &c.Checks[i]
-
+		
 		// Apply default type
 		if check.Type == "" {
 			if strings.HasPrefix(check.URL, "http") {
@@ -294,27 +294,27 @@ func (c *Config) ApplyDefaults() {
 				check.Type = types.CheckTypeTCP
 			}
 		}
-
+		
 		// Apply default method for HTTP checks
 		if check.Type == types.CheckTypeHTTP && check.Method == "" {
 			check.Method = "GET"
 		}
-
+		
 		// Apply default timeout
 		if check.Timeout == 0 {
 			check.Timeout = c.Global.DefaultTimeout
 		}
-
+		
 		// Apply default interval
 		if check.Interval == 0 {
 			check.Interval = c.Global.DefaultInterval
 		}
-
+		
 		// Apply default expected status
 		if check.Expected.Status == 0 {
 			check.Expected.Status = 200
 		}
-
+		
 		// Apply default retry config
 		if check.Retry.Attempts == 0 {
 			check.Retry.Attempts = c.Global.MaxRetries
@@ -326,7 +326,7 @@ func (c *Config) ApplyDefaults() {
 			check.Retry.Backoff = "exponential"
 		}
 	}
-
+	
 	// Apply notification defaults
 	if c.Notifications.Email.SMTPPort == 0 {
 		c.Notifications.Email.SMTPPort = 587
@@ -389,10 +389,40 @@ func SaveExample(filePath string) error {
 					Tags:     []string{"database", "infrastructure"},
 				},
 			},
+			{
+				CheckConfig: types.CheckConfig{
+					Name:     "Google DNS",
+					Type:     types.CheckTypeTCP,
+					URL:      "8.8.8.8:53",
+					Interval: 120 * time.Second,
+					Timeout:  3 * time.Second,
+					Expected: types.Expected{
+						ResponseTimeMax: 100 * time.Millisecond,
+					},
+					Tags: []string{"dns", "external"},
+				},
+			},
+			{
+				CheckConfig: types.CheckConfig{
+					Name:     "HTTPBin Test",
+					Type:     types.CheckTypeHTTP,
+					URL:      "https://httpbin.org/get",
+					Method:   "GET",
+					Interval: 45 * time.Second,
+					Timeout:  15 * time.Second,
+					Expected: types.Expected{
+						Status:          200,
+						BodyContains:    "origin",
+						ResponseTimeMax: 3 * time.Second,
+						ContentType:     "application/json",
+					},
+					Tags: []string{"test", "external"},
+				},
+			},
 		},
 		Notifications: Notifications{
 			Email: EmailConfig{
-				Enabled:  true,
+				Enabled:  false, // Disabled by default
 				SMTPHost: "smtp.gmail.com",
 				SMTPPort: 587,
 				Username: "alerts@example.com",
@@ -403,7 +433,7 @@ func SaveExample(filePath string) error {
 				TLS:      true,
 			},
 			Slack: SlackConfig{
-				Enabled:    true,
+				Enabled:    false, // Disabled by default
 				WebhookURL: "${SLACK_WEBHOOK_URL}",
 				Channel:    "#alerts",
 				Username:   "HealthCheck Bot",
@@ -420,15 +450,36 @@ func SaveExample(filePath string) error {
 			},
 		},
 	}
-
+	
 	data, err := yaml.Marshal(config)
 	if err != nil {
 		return fmt.Errorf("failed to marshal example config: %w", err)
 	}
+	
+	// Add header comment
+	header := `# HealthCheck CLI Configuration Example
+# 
+# This file contains example configurations for monitoring various endpoints.
+# Copy this file and modify it according to your needs.
+#
+# Environment variables can be used with ${VAR_NAME} syntax.
+# Example: password: "${EMAIL_PASSWORD}"
+#
+# For more information, visit: https://github.com/your-username/healthcheck-cli
 
-	if err := os.WriteFile(filePath, data, 0644); err != nil {
+`
+	
+	fullContent := header + string(data)
+	
+	if filePath == "" {
+		// Output to stdout
+		fmt.Print(fullContent)
+		return nil
+	}
+	
+	if err := os.WriteFile(filePath, []byte(fullContent), 0644); err != nil {
 		return fmt.Errorf("failed to write example config: %w", err)
 	}
-
+	
 	return nil
 }

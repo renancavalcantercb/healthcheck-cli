@@ -25,7 +25,7 @@ type App struct {
 func New() *App {
 	return &App{
 		httpChecker: checker.NewHTTPChecker(30 * time.Second),
-		tcpChecker:  &checker.TCPChecker{},
+		tcpChecker:  checker.NewTCPChecker(10 * time.Second),
 		config:      config.DefaultConfig(),
 	}
 }
@@ -36,10 +36,10 @@ func (a *App) StartQuick(url string, interval time.Duration, daemon bool) error 
 	if interval == 0 {
 		interval = 30 * time.Second
 	}
-
+	
 	fmt.Printf("🚀 Starting health check for %s\n", url)
 	fmt.Printf("📊 Check interval: %v\n", interval)
-
+	
 	// Create a simple check configuration
 	check := types.CheckConfig{
 		Name:     "Quick Check",
@@ -58,18 +58,18 @@ func (a *App) StartQuick(url string, interval time.Duration, daemon bool) error 
 			Backoff:  "exponential",
 		},
 	}
-
+	
 	// Determine check type based on URL
 	if !strings.HasPrefix(url, "http") {
 		check.Type = types.CheckTypeTCP
 		check.Method = ""
 	}
-
+	
 	if daemon {
 		fmt.Println("🔄 Running in daemon mode (Press Ctrl+C to stop)")
 		return a.runDaemon([]types.CheckConfig{check})
 	}
-
+	
 	return a.runOnce(check)
 }
 
@@ -79,23 +79,23 @@ func (a *App) StartWithConfig(configFile string, daemon bool) error {
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
-
+	
 	a.config = cfg
-
+	
 	fmt.Printf("🔧 Loaded configuration from %s\n", configFile)
 	fmt.Printf("📊 Monitoring %d endpoints\n", len(cfg.Checks))
-
+	
 	// Convert config checks to types.CheckConfig
 	checks := make([]types.CheckConfig, len(cfg.Checks))
 	for i, c := range cfg.Checks {
 		checks[i] = c.CheckConfig
 	}
-
+	
 	if daemon {
 		fmt.Println("🔄 Running in daemon mode (Press Ctrl+C to stop)")
 		return a.runDaemon(checks)
 	}
-
+	
 	// Run all checks once
 	fmt.Println("🏃 Running all checks once...")
 	for _, check := range checks {
@@ -103,7 +103,7 @@ func (a *App) StartWithConfig(configFile string, daemon bool) error {
 			fmt.Printf("❌ Check %s failed: %v\n", check.Name, err)
 		}
 	}
-
+	
 	return nil
 }
 
@@ -112,9 +112,9 @@ func (a *App) TestEndpoint(url string, timeout time.Duration, verbose bool) erro
 	if timeout == 0 {
 		timeout = 10 * time.Second
 	}
-
+	
 	fmt.Printf("🧪 Testing %s...\n", url)
-
+	
 	check := types.CheckConfig{
 		Name:    "Test",
 		URL:     url,
@@ -125,20 +125,19 @@ func (a *App) TestEndpoint(url string, timeout time.Duration, verbose bool) erro
 			Status: 200,
 		},
 	}
-
+	
 	// Determine check type
 	if !strings.HasPrefix(url, "http") {
 		check.Type = types.CheckTypeTCP
 		check.Method = ""
 	}
-
+	
+	// Perform the check directly
 	result := a.performCheck(check)
 	a.printResult(result, verbose)
-
-	if !result.IsHealthy() {
-		return fmt.Errorf("check failed")
-	}
-
+	
+	// Don't return error for failed checks in test mode
+	// Just print the result and return success
 	return nil
 }
 
@@ -148,7 +147,7 @@ func (a *App) ShowStatus(watch bool) error {
 		fmt.Println("📊 Status dashboard not implemented yet")
 		return nil
 	}
-
+	
 	fmt.Println("👀 Watch mode not implemented yet")
 	return nil
 }
@@ -156,14 +155,30 @@ func (a *App) ShowStatus(watch bool) error {
 // ValidateConfig validates a configuration file
 func (a *App) ValidateConfig(configFile string) error {
 	fmt.Printf("🔍 Validating configuration file: %s\n", configFile)
-
+	
 	_, err := config.LoadConfig(configFile)
 	if err != nil {
 		fmt.Printf("❌ Configuration validation failed: %v\n", err)
 		return err
 	}
-
+	
 	fmt.Println("✅ Configuration is valid!")
+	return nil
+}
+
+// GenerateExampleConfig generates an example configuration file
+func (a *App) GenerateExampleConfig(outputFile string) error {
+	if outputFile == "" {
+		// Output to stdout
+		return config.SaveExample("")
+	}
+	
+	// Output to file
+	if err := config.SaveExample(outputFile); err != nil {
+		return fmt.Errorf("failed to generate example config: %w", err)
+	}
+	
+	fmt.Printf("✅ Example configuration saved to %s\n", outputFile)
 	return nil
 }
 
@@ -171,11 +186,11 @@ func (a *App) ValidateConfig(configFile string) error {
 func (a *App) runOnce(check types.CheckConfig) error {
 	result := a.performCheck(check)
 	a.printResult(result, false)
-
+	
 	if !result.IsHealthy() {
 		return fmt.Errorf("check failed")
 	}
-
+	
 	return nil
 }
 
@@ -184,24 +199,24 @@ func (a *App) runDaemon(checks []types.CheckConfig) error {
 	// Setup signal handling for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
+	
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
+	
 	go func() {
 		<-sigChan
 		fmt.Println("\n🛑 Received shutdown signal, stopping...")
 		cancel()
 	}()
-
+	
 	// Create channels for results
 	resultChan := make(chan types.Result, len(checks)*2)
-
+	
 	// Start monitoring goroutines for each check
 	for _, check := range checks {
 		go a.monitorEndpoint(ctx, check, resultChan)
 	}
-
+	
 	// Process results
 	for {
 		select {
@@ -218,7 +233,7 @@ func (a *App) runDaemon(checks []types.CheckConfig) error {
 func (a *App) monitorEndpoint(ctx context.Context, check types.CheckConfig, resultChan chan<- types.Result) {
 	ticker := time.NewTicker(check.Interval)
 	defer ticker.Stop()
-
+	
 	// Run initial check immediately
 	result := a.performCheck(check)
 	select {
@@ -226,7 +241,7 @@ func (a *App) monitorEndpoint(ctx context.Context, check types.CheckConfig, resu
 	case <-ctx.Done():
 		return
 	}
-
+	
 	// Continue monitoring
 	for {
 		select {
@@ -246,13 +261,24 @@ func (a *App) monitorEndpoint(ctx context.Context, check types.CheckConfig, resu
 // performCheck executes a health check with retry logic
 func (a *App) performCheck(check types.CheckConfig) types.Result {
 	var result types.Result
-
-	for attempt := 1; attempt <= check.Retry.Attempts; attempt++ {
+	
+	maxAttempts := check.Retry.Attempts
+	if maxAttempts == 0 {
+		maxAttempts = 1 // At least one attempt
+	}
+	
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		// Perform the actual check
 		switch check.Type {
 		case types.CheckTypeHTTP:
+			if a.httpChecker == nil {
+				a.httpChecker = checker.NewHTTPChecker(check.Timeout)
+			}
 			result = a.httpChecker.Check(check)
 		case types.CheckTypeTCP:
+			if a.tcpChecker == nil {
+				a.tcpChecker = checker.NewTCPChecker(check.Timeout)
+			}
 			result = a.tcpChecker.Check(check)
 		default:
 			result = types.Result{
@@ -263,19 +289,19 @@ func (a *App) performCheck(check types.CheckConfig) types.Result {
 				Timestamp: time.Now(),
 			}
 		}
-
+		
 		// If check succeeded or we're out of attempts, return
-		if result.IsHealthy() || attempt >= check.Retry.Attempts {
+		if result.IsHealthy() || attempt >= maxAttempts {
 			break
 		}
-
+		
 		// Wait before retry (with backoff)
-		if attempt < check.Retry.Attempts {
+		if attempt < maxAttempts {
 			delay := a.calculateRetryDelay(check.Retry, attempt)
 			time.Sleep(delay)
 		}
 	}
-
+	
 	return result
 }
 
@@ -285,7 +311,7 @@ func (a *App) calculateRetryDelay(retry types.RetryConfig, attempt int) time.Dur
 	if baseDelay == 0 {
 		baseDelay = 2 * time.Second
 	}
-
+	
 	switch retry.Backoff {
 	case "exponential":
 		delay := baseDelay * time.Duration(1<<uint(attempt-1)) // 2^(attempt-1)
@@ -311,7 +337,7 @@ func (a *App) printResult(result types.Result, verbose bool) {
 	if !a.config.Global.DisableColors {
 		status = result.Status.Color() + status + "\033[0m" // Reset color
 	}
-
+	
 	// Basic info
 	fmt.Printf("[%s] %s %s - %v",
 		result.Timestamp.Format("15:04:05"),
@@ -319,19 +345,19 @@ func (a *App) printResult(result types.Result, verbose bool) {
 		result.Name,
 		result.ResponseTime,
 	)
-
+	
 	// Add status code for HTTP checks
 	if result.StatusCode > 0 {
 		fmt.Printf(" (HTTP %d)", result.StatusCode)
 	}
-
+	
 	// Add error if present
 	if result.Error != "" {
 		fmt.Printf(" - %s", result.Error)
 	}
-
+	
 	fmt.Println()
-
+	
 	// Verbose output
 	if verbose {
 		fmt.Printf("  URL: %s\n", result.URL)

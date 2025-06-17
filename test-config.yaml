@@ -1,0 +1,162 @@
+# HealthCheck CLI Configuration Example
+# 
+# This file contains example configurations for monitoring various endpoints.
+# Copy this file and modify it according to your needs.
+#
+# Environment variables can be used with ${VAR_NAME} syntax.
+# Example: password: "${EMAIL_PASSWORD}"
+#
+# For more information, visit: https://github.com/your-username/healthcheck-cli
+
+global:
+    max_workers: 20
+    default_timeout: 10s
+    default_interval: 30s
+    storage_path: ./healthcheck.db
+    log_level: info
+    disable_colors: false
+    user_agent: HealthCheck-CLI/1.0
+    max_retries: 0
+    retry_delay: 0s
+checks:
+    - name: API Health
+      type: http
+      url: https://api.example.com/health
+      interval: 30s
+      timeout: 10s
+      method: GET
+      headers:
+        Accept: application/json
+        Authorization: Bearer ${API_TOKEN}
+      body: ""
+      expected:
+        status: 200
+        status_range: []
+        body_contains: healthy
+        body_not_contains: ""
+        response_time_max: 2s
+        content_type: ""
+        min_body_size: 0
+      retry:
+        attempts: 3
+        delay: 5s
+        backoff: exponential
+        max_delay: 0s
+      tags:
+        - api
+        - critical
+    - name: Database Connection
+      type: tcp
+      url: db.example.com:5432
+      interval: 1m0s
+      timeout: 5s
+      method: ""
+      headers: {}
+      body: ""
+      expected:
+        status: 0
+        status_range: []
+        body_contains: ""
+        body_not_contains: ""
+        response_time_max: 0s
+        content_type: ""
+        min_body_size: 0
+      retry:
+        attempts: 0
+        delay: 0s
+        backoff: ""
+        max_delay: 0s
+      tags:
+        - database
+        - infrastructure
+    - name: Google DNS
+      type: tcp
+      url: 8.8.8.8:53
+      interval: 2m0s
+      timeout: 3s
+      method: ""
+      headers: {}
+      body: ""
+      expected:
+        status: 0
+        status_range: []
+        body_contains: ""
+        body_not_contains: ""
+        response_time_max: 100ms
+        content_type: ""
+        min_body_size: 0
+      retry:
+        attempts: 0
+        delay: 0s
+        backoff: ""
+        max_delay: 0s
+      tags:
+        - dns
+        - external
+    - name: HTTPBin Test
+      type: http
+      url: https://httpbin.org/get
+      interval: 45s
+      timeout: 15s
+      method: GET
+      headers: {}
+      body: ""
+      expected:
+        status: 200
+        status_range: []
+        body_contains: origin
+        body_not_contains: ""
+        response_time_max: 3s
+        content_type: application/json
+        min_body_size: 0
+      retry:
+        attempts: 0
+        delay: 0s
+        backoff: ""
+        max_delay: 0s
+      tags:
+        - test
+        - external
+notifications:
+    email:
+        enabled: false
+        smtp_host: smtp.gmail.com
+        smtp_port: 587
+        username: alerts@example.com
+        password: ${EMAIL_PASSWORD}
+        from: alerts@example.com
+        to:
+            - team@example.com
+        subject: "\U0001F6A8 HealthCheck Alert: {{.Name}}"
+        template: ""
+        tls: true
+    slack:
+        enabled: false
+        webhook_url: ${SLACK_WEBHOOK_URL}
+        channel: '#alerts'
+        username: HealthCheck Bot
+        icon_emoji: ':hospital:'
+        template: ""
+    webhook:
+        enabled: false
+        url: ""
+        method: ""
+        headers: {}
+        timeout: 0s
+    discord:
+        enabled: false
+        webhook_url: ""
+        username: ""
+        avatar_url: ""
+    telegram:
+        enabled: false
+        bot_token: ""
+        chat_id: ""
+    global_rules:
+        on_success: false
+        on_failure: true
+        on_recovery: true
+        on_slow_response: true
+        cooldown: 5m0s
+        max_alerts: 10
+        escalation_delay: 15m0s

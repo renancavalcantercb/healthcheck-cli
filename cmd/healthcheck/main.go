@@ -39,19 +39,19 @@ Examples:
 		configFile, _ := cmd.Flags().GetString("config")
 		daemon, _ := cmd.Flags().GetBool("daemon")
 		interval, _ := cmd.Flags().GetDuration("interval")
-
+		
 		app := app.New()
-
+		
 		// Quick start mode
 		if len(args) == 1 {
 			return app.StartQuick(args[0], interval, daemon)
 		}
-
+		
 		// Config file mode
 		if configFile != "" {
 			return app.StartWithConfig(configFile, daemon)
 		}
-
+		
 		return fmt.Errorf("either provide a URL or use --config flag")
 	},
 }
@@ -69,7 +69,7 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		timeout, _ := cmd.Flags().GetDuration("timeout")
 		verbose, _ := cmd.Flags().GetBool("verbose")
-
+		
 		app := app.New()
 		return app.TestEndpoint(args[0], timeout, verbose)
 	},
@@ -105,22 +105,40 @@ Examples:
 	},
 }
 
+var exampleCmd = &cobra.Command{
+	Use:   "example-config",
+	Short: "Generate example configuration file",
+	Long: `Generate an example configuration file with common settings.
+
+Examples:
+  healthcheck example-config > healthcheck.yaml
+  healthcheck example-config --output config.yaml`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		output, _ := cmd.Flags().GetString("output")
+		app := app.New()
+		return app.GenerateExampleConfig(output)
+	},
+}
+
 func init() {
 	// Start command flags
 	startCmd.Flags().StringP("config", "c", "", "Configuration file path")
 	startCmd.Flags().BoolP("daemon", "d", false, "Run as daemon in background")
 	startCmd.Flags().DurationP("interval", "i", 0, "Check interval (e.g., 30s, 1m)")
-
+	
 	// Test command flags
 	testCmd.Flags().DurationP("timeout", "t", 0, "Request timeout (default: 10s)")
 	testCmd.Flags().BoolP("verbose", "v", false, "Verbose output")
-
+	
 	// Status command flags
 	statusCmd.Flags().BoolP("watch", "w", false, "Watch mode (auto-refresh every 5s)")
-
+	
+	// Example config command flags
+	exampleCmd.Flags().StringP("output", "o", "", "Output file (default: stdout)")
+	
 	// Add commands to root
-	rootCmd.AddCommand(startCmd, testCmd, statusCmd, validateCmd)
-
+	rootCmd.AddCommand(startCmd, testCmd, statusCmd, validateCmd, exampleCmd)
+	
 	// Global flags
 	rootCmd.PersistentFlags().Bool("no-color", false, "Disable colored output")
 }

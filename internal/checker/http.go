@@ -108,17 +108,62 @@ func (h *HTTPChecker) Check(check types.CheckConfig) types.Result {
 		} else {
 			result.Status = types.StatusDown
 		}
-
+		result.Error = fmt.Sprintf("Response validation failed: %v", err)
+		return result
 	}
-
+	
+	// Check response time performance (even if other validations passed)
+	if check.Expected.ResponseTimeMax > 0 && duration > check.Expected.ResponseTimeMax {
+		result.Status = types.StatusSlow
+		result.Error = fmt.Sprintf("Response time %v exceeds maximum %v", duration, check.Expected.ResponseTimeMax)
+		return result
+	}
+	
+	// All checks passed
 	result.Status = types.StatusUp
 	return result
 }
 
-// validateResponse validates the response against the expected criteria
+// validateResponse validates the HTTP response against expected criteria
 func (h *HTTPChecker) validateResponse(resp *http.Response, body []byte, expected types.Expected) error {
-	if expected.Status != 0 && resp.StatusCode != expected.Status {
-		return fmt.Errorf("expected status %d but got %d", expected.Status, resp.StatusCode)
+	// Check status code
+	if expected.Status > 0 && resp.StatusCode != expected.Status {
+		// Check if status range is defined
+		if len(expected.StatusRange) == 2 {
+			if resp.StatusCode < expected.StatusRange[0] || resp.StatusCode > expected.StatusRange[1] {
+				return fmt.Errorf("status code %d not in expected range %d-%d", 
+					resp.StatusCode, expected.StatusRange[0], expected.StatusRange[1])
+			}
+		} else {
+			return fmt.Errorf("expected status %d, got %d", expected.Status, resp.StatusCode)
+		}
 	}
+	
+	bodyStr := string(body)
+	
+	// Check if body contains expected content
+	if expected.BodyContains != "" && !strings.Contains(bodyStr, expected.BodyContains) {
+		return fmt.Errorf("response body does not contain '%s'", expected.BodyContains)
+	}
+	
+	// Check if body does NOT contain unwanted content
+	if expected.BodyNotContains != "" && strings.Contains(bodyStr, expected.BodyNotContains) {
+		return fmt.Errorf("response body contains unwanted content '%s'", expected.BodyNotContains)
+	}
+	
+	// Check content type
+	if expected.ContentType != "" {
+		contentType := resp.Header.Get("Content-Type")
+		if !strings.Contains(contentType, expected.ContentType) {
+			return fmt.Errorf("expected content type '%s', got '%s'", expected.ContentType, contentType)
+		}
+	}
+	
+	// Check minimum body size
+	if expected.MinBodySize > 0 && int64(len(body)) < expected.MinBodySize {
+		return fmt.Errorf("response body size %d bytes is less than minimum %d bytes", 
+			len(body), expected.MinBodySize)
+	}
+	
 	return nil
 }
