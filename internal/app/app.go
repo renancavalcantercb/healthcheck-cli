@@ -9,8 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/renancavalcantercb/healthcheck-cli/internal/checker"
 	"github.com/renancavalcantercb/healthcheck-cli/internal/config"
+	"github.com/renancavalcantercb/healthcheck-cli/internal/tui"
 	"github.com/renancavalcantercb/healthcheck-cli/pkg/types"
 )
 
@@ -144,12 +146,33 @@ func (a *App) TestEndpoint(url string, timeout time.Duration, verbose bool) erro
 // ShowStatus shows a status dashboard
 func (a *App) ShowStatus(watch bool) error {
 	if !watch {
-		fmt.Println("📊 Status dashboard not implemented yet")
+		// Static status (não implementado ainda)
+		fmt.Println("📊 Static status not implemented yet")
+		fmt.Println("💡 Use --watch for interactive dashboard")
 		return nil
 	}
 	
-	fmt.Println("👀 Watch mode not implemented yet")
-	return nil
+	// Load config if we have one, otherwise use current checks
+	var checks []types.CheckConfig
+	if len(a.config.Checks) > 0 {
+		for _, c := range a.config.Checks {
+			checks = append(checks, c.CheckConfig)
+		}
+	} else {
+		// Default check if no config
+		checks = []types.CheckConfig{
+			{
+				Name: "Example",
+				URL:  "https://httpbin.org/get",
+				Type: types.CheckTypeHTTP,
+				Method: "GET",
+				Timeout: 10 * time.Second,
+				Expected: types.Expected{Status: 200},
+			},
+		}
+	}
+	
+	return a.runTUIDashboard(checks)
 }
 
 // ValidateConfig validates a configuration file
@@ -166,7 +189,15 @@ func (a *App) ValidateConfig(configFile string) error {
 	return nil
 }
 
-// GenerateExampleConfig generates an example configuration file
+// LoadConfigForStatus loads configuration for status dashboard
+func (a *App) LoadConfigForStatus(configFile string) error {
+	cfg, err := config.LoadConfig(configFile)
+	if err != nil {
+		return err
+	}
+	a.config = cfg
+	return nil
+}
 func (a *App) GenerateExampleConfig(outputFile string) error {
 	if outputFile == "" {
 		// Output to stdout
@@ -371,5 +402,89 @@ func (a *App) printResult(result types.Result, verbose bool) {
 			}
 		}
 		fmt.Println()
+	}
+}
+
+// runTUIDashboard runs the terminal UI dashboard
+func (a *App) runTUIDashboard(checks []types.CheckConfig) error {
+	// Create TUI model
+	model := tui.New()
+	
+	// Create a program
+	program := tea.NewProgram(model, tea.WithAltScreen())
+	
+	// Start background monitoring
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	
+	// Channel for sending results to TUI
+	resultsChan := make(chan []types.Result, 10)
+	
+	// Start monitoring goroutines
+	for _, check := range checks {
+		go a.monitorForTUI(ctx, check, resultsChan)
+	}
+	
+	// Goroutine to collect and send results to TUI
+	go func() {
+		resultsMap := make(map[string]types.Result)
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case result := <-resultsChan:
+				for _, r := range result {
+					resultsMap[r.Name] = r
+				}
+			case <-ticker.C:
+				// Send current results to TUI
+				var results []types.Result
+				for _, result := range resultsMap {
+					results = append(results, result)
+				}
+				if len(results) > 0 {
+					program.Send(results)
+				}
+			}
+		}
+	}()
+	
+	// Run the TUI
+	if _, err := program.Run(); err != nil {
+		return fmt.Errorf("TUI program failed: %w", err)
+	}
+	
+	return nil
+}
+
+// monitorForTUI monitors a single endpoint for the TUI
+func (a *App) monitorForTUI(ctx context.Context, check types.CheckConfig, resultsChan chan<- []types.Result) {
+	ticker := time.NewTicker(check.Interval)
+	defer ticker.Stop()
+	
+	// Run initial check
+	result := a.performCheck(check)
+	select {
+	case resultsChan <- []types.Result{result}:
+	case <-ctx.Done():
+		return
+	}
+	
+	// Continue monitoring
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			result := a.performCheck(check)
+			select {
+			case resultsChan <- []types.Result{result}:
+			case <-ctx.Done():
+				return
+			}
+		}
 	}
 }

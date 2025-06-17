@@ -82,10 +82,20 @@ var statusCmd = &cobra.Command{
 
 Examples:
   healthcheck status              # Show current status
-  healthcheck status --watch      # Watch mode with auto-refresh`,
+  healthcheck status --watch      # Watch mode with auto-refresh
+  healthcheck status --config config.yaml --watch  # Watch with specific config`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		watch, _ := cmd.Flags().GetBool("watch")
+		configFile, _ := cmd.Flags().GetString("config")
 		app := app.New()
+		
+		// Load config if provided
+		if configFile != "" {
+			if err := app.LoadConfigForStatus(configFile); err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
+		}
+		
 		return app.ShowStatus(watch)
 	},
 }
@@ -132,6 +142,7 @@ func init() {
 	
 	// Status command flags
 	statusCmd.Flags().BoolP("watch", "w", false, "Watch mode (auto-refresh every 5s)")
+	statusCmd.Flags().StringP("config", "c", "", "Configuration file path")
 	
 	// Example config command flags
 	exampleCmd.Flags().StringP("output", "o", "", "Output file (default: stdout)")
