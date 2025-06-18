@@ -1,6 +1,6 @@
 # HealthCheck CLI
 
-A powerful command-line tool for monitoring the health of your HTTP and TCP endpoints with a beautiful terminal UI.
+A powerful command-line tool for monitoring the health of your endpoints with support for HTTP and TCP checks, real-time notifications via email and Discord, and a beautiful terminal UI.
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
 ![Go Version](https://img.shields.io/badge/go-1.24.2-blue.svg)
@@ -8,16 +8,31 @@ A powerful command-line tool for monitoring the health of your HTTP and TCP endp
 
 ## Features
 
-- 🔍 Monitor HTTP and TCP endpoints
-- 📊 Beautiful terminal UI dashboard
-- 📈 Historical data tracking with SQLite storage
-- 🔄 Configurable check intervals and timeouts
-- 🔁 Automatic retry with exponential backoff
-- 📝 YAML/JSON configuration support
-- 📱 Multi-platform support (Linux, macOS, Windows)
-- 🎨 Colored output with emoji status indicators
-- 📊 Detailed statistics and history
-- 🔔 Configurable notifications (Email, Slack, Discord, Telegram, Webhook)
+- 🔍 **Multiple Check Types**
+  - HTTP/HTTPS endpoints
+  - TCP ports
+  - Custom headers and body
+  - Response validation
+  - Response time monitoring
+
+- 📊 **Real-time Monitoring**
+  - Beautiful terminal UI
+  - Status dashboard
+  - Response time tracking
+  - Historical data
+
+- 🔔 **Smart Notifications**
+  - Email notifications (SMTP)
+  - Discord webhook integration
+  - Configurable notification rules
+  - Cooldown periods
+  - Status-based alerts
+
+- ⚙️ **Flexible Configuration**
+  - YAML configuration files
+  - Environment variable support
+  - Default values with overrides
+  - Multiple check profiles
 
 ## Installation
 
@@ -61,71 +76,151 @@ Note: The `go install` command is not currently supported as the project needs t
 
 ## Quick Start
 
-### Quick Check
-
+1. Generate an example configuration:
 ```bash
-# Check a single endpoint
-healthcheck quick https://api.example.com/health
-
-# Run in daemon mode
-healthcheck quick https://api.example.com/health --daemon
-
-# Custom interval
-healthcheck quick https://api.example.com/health --interval=1m
+healthcheck config example config.yml
 ```
 
-### Interactive Dashboard
-
-```bash
-# Start the interactive dashboard
-healthcheck status --watch
-
-# Use with configuration file
-healthcheck status --watch --config=config.yaml
+2. Edit the configuration file to add your endpoints:
+```yaml
+checks:
+  - name: "API Health"
+    type: "http"
+    url: "https://api.example.com/health"
+    interval: 30s
+    timeout: 10s
+    expected:
+      status: 200
+      body_contains: "healthy"
 ```
 
-### Configuration File
+3. Start monitoring:
+```bash
+healthcheck monitor config.yml
+```
 
-Create a `config.yaml` file:
+## Configuration
+
+### Basic Configuration
 
 ```yaml
 global:
-  max_workers: 20
+  max_workers: 10
   default_timeout: 10s
   default_interval: 30s
-  storage_path: ./healthcheck.db
-  log_level: info
+  storage_path: "./healthcheck.db"
+  log_level: "info"
 
 checks:
-  - name: API Health
-    type: http
-    url: https://api.example.com/health
+  - name: "API Health"
+    type: "http"
+    url: "https://api.example.com/health"
     interval: 30s
     timeout: 10s
-    method: GET
+    method: "GET"
     headers:
-      Authorization: Bearer ${API_TOKEN}
+      Authorization: "Bearer ${API_TOKEN}"
     expected:
       status: 200
-      body_contains: healthy
+      body_contains: "healthy"
       response_time_max: 2s
-    retry:
-      attempts: 3
-      delay: 5s
-      backoff: exponential
-
-  - name: Database Connection
-    type: tcp
-    url: db.example.com:5432
-    interval: 1m
-    timeout: 5s
 ```
 
-Run with configuration:
+### Email Notifications
+
+```yaml
+notifications:
+  email:
+    enabled: true
+    smtp_host: "smtp.gmail.com"
+    smtp_port: 587
+    username: "your-email@gmail.com"
+    password: "${EMAIL_PASSWORD}"  # Use app password for Gmail
+    from: "your-email@gmail.com"
+    to: ["recipient@example.com"]
+    subject: "🚨 HealthCheck Alert: {{.Name}}"
+    tls: true
+```
+
+### Discord Notifications
+
+```yaml
+notifications:
+  discord:
+    enabled: true
+    webhook_url: "${DISCORD_WEBHOOK_URL}"
+    username: "HealthCheck Bot"
+    avatar_url: "https://raw.githubusercontent.com/renancavalcantercb/healthcheck-cli/main/assets/logo.png"
+```
+
+### Notification Rules
+
+```yaml
+notifications:
+  global_rules:
+    on_success: true
+    on_failure: true
+    on_recovery: true
+    on_slow_response: true
+    cooldown: 5m
+    max_alerts: 10
+    escalation_delay: 15m
+```
+
+## Usage
+
+### Monitor Endpoints
 
 ```bash
-healthcheck monitor config.yaml
+# Monitor with configuration file
+healthcheck monitor config.yml
+
+# Run in daemon mode
+healthcheck monitor config.yml --daemon
+
+# Quick check single endpoint
+healthcheck quick https://api.example.com/health
+
+# Test endpoint immediately
+healthcheck test https://api.example.com/health
 ```
+
+### View Status
+
+```bash
+# Show status dashboard
+healthcheck status
+
+# Interactive dashboard
+healthcheck status --watch
+
+# With specific config
+healthcheck status --config config.yml
+```
+
+### Statistics
+
+```bash
+# Show stats for all services
+healthcheck stats
+
+# Show stats for specific service
+healthcheck stats "API Health"
+
+# Show stats since duration
+healthcheck stats --since 24h
+
+# JSON output
+healthcheck stats --json
+```
+
+## Environment Variables
+
+The following environment variables can be used in the configuration:
+
+- `${API_TOKEN}` - API authentication token
+- `${EMAIL_PASSWORD}` - Email password
+- `${DISCORD_WEBHOOK_URL}` - Discord webhook URL
 
 ## Commands
 
@@ -138,62 +233,6 @@ healthcheck monitor config.yaml
 - `history [service-name]` - Show historical data for a service
 - `db-info` - Show database information
 - `version` - Show version information
-
-## Configuration
-
-### Global Settings
-
-- `max_workers`: Maximum number of concurrent checks
-- `default_timeout`: Default timeout for checks
-- `default_interval`: Default check interval
-- `storage_path`: Path to SQLite database
-- `log_level`: Logging level (debug, info, warn, error)
-- `disable_colors`: Disable colored output
-- `user_agent`: Custom User-Agent for HTTP checks
-- `max_retries`: Default number of retry attempts
-- `retry_delay`: Default delay between retries
-
-### Check Configuration
-
-- `name`: Unique name for the check
-- `type`: Check type (http or tcp)
-- `url`: Endpoint URL
-- `interval`: Check interval
-- `timeout`: Request timeout
-- `method`: HTTP method (for HTTP checks)
-- `headers`: HTTP headers
-- `expected`: Expected response criteria
-- `retry`: Retry configuration
-
-### Notifications
-
-The tool supports multiple notification channels:
-
-- Email
-- Slack
-- Discord
-- Telegram
-- Generic Webhook
-
-Configure notifications in your config file:
-
-```yaml
-notifications:
-  email:
-    enabled: true
-    smtp_host: smtp.gmail.com
-    smtp_port: 587
-    username: your-email@gmail.com
-    password: ${EMAIL_PASSWORD}
-    from: your-email@gmail.com
-    to: ["admin@example.com"]
-    subject: "HealthCheck Alert: {{.Name}}"
-
-  slack:
-    enabled: true
-    webhook_url: ${SLACK_WEBHOOK_URL}
-    channel: "#alerts"
-```
 
 ## Development
 
