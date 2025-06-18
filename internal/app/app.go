@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/renancavalcantercb/healthcheck-cli/internal/checker"
 	"github.com/renancavalcantercb/healthcheck-cli/internal/config"
+	"github.com/renancavalcantercb/healthcheck-cli/internal/notifications"
 	"github.com/renancavalcantercb/healthcheck-cli/internal/storage"
 	"github.com/renancavalcantercb/healthcheck-cli/internal/tui"
 	"github.com/renancavalcantercb/healthcheck-cli/pkg/types"
@@ -23,6 +24,7 @@ type App struct {
 	tcpChecker  *checker.TCPChecker
 	storage     *storage.SQLiteStorage
 	config      *config.Config
+	notifier    *notifications.Manager
 }
 
 // New creates a new App instance
@@ -40,6 +42,9 @@ func New() *App {
 		storage:     storage,
 		config:      config.DefaultConfig(),
 	}
+
+	// Initialize notification manager
+	app.notifier = notifications.NewManager(app.config)
 
 	// Start background cleanup routine
 	if storage != nil {
@@ -450,6 +455,11 @@ func (a *App) printResult(result types.Result, verbose bool) {
 			}
 		}
 		fmt.Println()
+	}
+
+	// Send notifications
+	if err := a.notifier.Notify(result); err != nil {
+		fmt.Printf("⚠️  Failed to send notification: %v\n", err)
 	}
 }
 
