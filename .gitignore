@@ -38,5 +38,4 @@ go.work
 # End of https://www.toptal.com/developers/gitignore/api/executable,go
 
 
-bin/
 *.db
