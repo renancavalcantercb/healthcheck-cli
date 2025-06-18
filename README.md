@@ -21,6 +21,13 @@ A powerful command-line tool for monitoring the health of your HTTP and TCP endp
 
 ## Installation
 
+### Quick Install (Recommended)
+
+```bash
+# Download and run the install script
+curl -sSL https://raw.githubusercontent.com/renancavalcantercb/healthcheck-cli/main/install.sh | bash
+```
+
 ### From Source
 
 ```bash
@@ -35,11 +42,22 @@ make build
 make install
 ```
 
-### Using Go
+### Manual Installation
 
 ```bash
-go install github.com/renancavalcantercb/healthcheck-cli@latest
+# Clone the repository
+git clone https://github.com/renancavalcantercb/healthcheck-cli.git
+cd healthcheck-cli
+
+# Install dependencies
+make deps
+
+# Build and install
+go build -o healthcheck cmd/healthcheck/main.go
+sudo mv healthcheck /usr/local/bin/
 ```
+
+Note: The `go install` command is not currently supported as the project needs to be built with CGO enabled for SQLite support.
 
 ## Quick Start
 
