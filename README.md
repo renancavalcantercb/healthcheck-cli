@@ -20,6 +20,7 @@ A powerful command-line tool for monitoring the health of your endpoints with su
   - Status dashboard
   - Response time tracking
   - Historical data
+  - Parallel execution with worker pool
 
 - 🔔 **Smart Notifications**
   - Email notifications (SMTP)
@@ -33,6 +34,7 @@ A powerful command-line tool for monitoring the health of your endpoints with su
   - Environment variable support
   - Default values with overrides
   - Multiple check profiles
+  - Configurable worker pool
 
 ## Installation
 
@@ -105,7 +107,7 @@ healthcheck monitor config.yml
 
 ```yaml
 global:
-  max_workers: 10
+  max_workers: 10        # Maximum number of concurrent checks
   default_timeout: 10s
   default_interval: 30s
   storage_path: "./healthcheck.db"
@@ -166,6 +168,22 @@ notifications:
     max_alerts: 10
     escalation_delay: 15m
 ```
+
+### Performance Optimization
+
+The tool uses a worker pool to execute health checks in parallel, which significantly improves performance when monitoring multiple endpoints. You can configure the number of concurrent workers in the global settings:
+
+```yaml
+global:
+  max_workers: 10  # Adjust based on your system's capabilities
+```
+
+Key benefits of parallel execution:
+- Faster overall execution time
+- Better resource utilization
+- Configurable concurrency level
+- Automatic load balancing
+- Graceful error handling
 
 ## Usage
 
