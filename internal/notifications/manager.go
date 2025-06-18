@@ -1,6 +1,7 @@
 package notifications
 
 import (
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -11,26 +12,36 @@ import (
 
 // Manager handles all notification channels
 type Manager struct {
-	emailNotifier *EmailNotifier
-	config        *config.Config
-	lastSent      map[string]time.Time
-	mu            sync.RWMutex
+	config           *config.Config
+	emailNotifier    *EmailNotifier
+	discordNotifier  *DiscordNotifier
+	lastNotification map[string]time.Time
+	mu               sync.RWMutex
 }
 
 // NewManager creates a new notification manager
 func NewManager(config *config.Config) *Manager {
-	log.Printf("📢 Inicializando gerenciador de notificações")
+	log.Printf("📢 Initializing notification manager")
 	
 	manager := &Manager{
-		config:   config,
-		lastSent: make(map[string]time.Time),
+		config:           config,
+		lastNotification: make(map[string]time.Time),
 	}
 
+	// Initialize email notifier if enabled
 	if config.Notifications.Email.Enabled {
-		log.Printf("📢 Configurando notificador de email")
+		log.Printf("📢 Configuring email notifier")
 		manager.emailNotifier = NewEmailNotifier(config.Notifications.Email)
 	} else {
-		log.Printf("📢 Notificações de email desabilitadas na configuração")
+		log.Printf("📢 Email notifications disabled in configuration")
+	}
+
+	// Initialize Discord notifier if enabled
+	if config.Notifications.Discord.Enabled {
+		log.Printf("📢 Configuring Discord notifier")
+		manager.discordNotifier = NewDiscordNotifier(config.Notifications.Discord)
+	} else {
+		log.Printf("📢 Discord notifications disabled in configuration")
 	}
 
 	return manager
@@ -38,29 +49,40 @@ func NewManager(config *config.Config) *Manager {
 
 // Notify sends notifications based on the check result
 func (m *Manager) Notify(result types.Result) error {
-	log.Printf("📢 Processando notificação para %s (Status: %s)", result.Name, result.Status)
+	log.Printf("📢 Processing notification for %s (Status: %s)", result.Name, result.Status)
 	
-	// Check if we should send notifications based on rules
+	// Check if we should notify based on rules
 	if !m.shouldNotify(result) {
-		log.Printf("📢 Notificação ignorada (regras de notificação)")
+		log.Printf("📢 Notification ignored (notification rules)")
 		return nil
 	}
 
-	// Update last sent time
-	m.mu.Lock()
-	m.lastSent[result.Name] = time.Now()
-	m.mu.Unlock()
+	// Check cooldown
+	if !m.checkCooldown(result.Name) {
+		log.Printf("📢 Notification ignored (cooldown)")
+		return nil
+	}
 
 	// Send email notification if enabled
 	if m.emailNotifier != nil {
-		log.Printf("📢 Enviando notificação por email")
+		log.Printf("📢 Sending email notification")
 		if err := m.emailNotifier.Send(result); err != nil {
-			log.Printf("❌ Erro ao enviar notificação por email: %v", err)
-			return err
+			log.Printf("❌ Error sending email notification: %v", err)
+			return fmt.Errorf("error sending email notification: %w", err)
 		}
-	} else {
-		log.Printf("📢 Notificador de email não disponível")
 	}
+
+	// Send Discord notification if enabled
+	if m.discordNotifier != nil {
+		log.Printf("📢 Sending Discord notification")
+		if err := m.discordNotifier.Send(result); err != nil {
+			log.Printf("❌ Error sending Discord notification: %v", err)
+			return fmt.Errorf("error sending Discord notification: %w", err)
+		}
+	}
+
+	// Update last notification time
+	m.lastNotification[result.Name] = time.Now()
 
 	return nil
 }
@@ -69,19 +91,6 @@ func (m *Manager) Notify(result types.Result) error {
 func (m *Manager) shouldNotify(result types.Result) bool {
 	rules := m.config.Notifications.GlobalRules
 
-	// Check cooldown period
-	m.mu.RLock()
-	lastSent, exists := m.lastSent[result.Name]
-	m.mu.RUnlock()
-
-	if exists {
-		if time.Since(lastSent) < rules.Cooldown {
-			log.Printf("📢 Notificação ignorada (cooldown)")
-			return false
-		}
-	}
-
-	// Check notification rules
 	switch result.Status {
 	case types.StatusUp:
 		return rules.OnSuccess
@@ -89,11 +98,18 @@ func (m *Manager) shouldNotify(result types.Result) bool {
 		return rules.OnFailure
 	case types.StatusSlow:
 		return rules.OnSlowResponse
-	case types.StatusError:
-		return rules.OnFailure
-	case types.StatusWarning:
-		return rules.OnFailure
 	default:
 		return false
 	}
+}
+
+// checkCooldown checks if enough time has passed since the last notification
+func (m *Manager) checkCooldown(name string) bool {
+	lastTime, exists := m.lastNotification[name]
+	if !exists {
+		return true
+	}
+
+	cooldown := m.config.Notifications.GlobalRules.Cooldown
+	return time.Since(lastTime) >= cooldown
 } 
