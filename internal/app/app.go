@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/renancavalcantercb/healthcheck-cli/internal/checker"
 	"github.com/renancavalcantercb/healthcheck-cli/internal/config"
+	"github.com/renancavalcantercb/healthcheck-cli/internal/storage"
 	"github.com/renancavalcantercb/healthcheck-cli/internal/tui"
 	"github.com/renancavalcantercb/healthcheck-cli/pkg/types"
 )
@@ -20,16 +21,32 @@ import (
 type App struct {
 	httpChecker *checker.HTTPChecker
 	tcpChecker  *checker.TCPChecker
+	storage     *storage.SQLiteStorage
 	config      *config.Config
 }
 
 // New creates a new App instance
 func New() *App {
-	return &App{
+	// Initialize storage
+	storage, err := storage.NewSQLiteStorage("./healthcheck.db")
+	if err != nil {
+		fmt.Printf("⚠️  Warning: Failed to initialize storage: %v\n", err)
+		fmt.Println("💡 Continuing without storage (data won't be persisted)")
+	}
+
+	app := &App{
 		httpChecker: checker.NewHTTPChecker(30 * time.Second),
 		tcpChecker:  checker.NewTCPChecker(10 * time.Second),
+		storage:     storage,
 		config:      config.DefaultConfig(),
 	}
+
+	// Start background cleanup routine
+	if storage != nil {
+		go app.backgroundCleanup()
+	}
+
+	return app
 }
 
 // StartQuick starts monitoring a single URL with minimal configuration
@@ -260,6 +277,29 @@ func (a *App) runDaemon(checks []types.CheckConfig) error {
 	}
 }
 
+// backgroundCleanup performs periodic cleanup of old data
+func (a *App) backgroundCleanup() {
+	ticker := time.NewTicker(24 * time.Hour) // Run daily
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if a.storage != nil {
+			// Keep data for 30 days
+			if err := a.storage.CleanupOldData(30 * 24 * time.Hour); err != nil {
+				fmt.Printf("Warning: cleanup failed: %v\n", err)
+			}
+		}
+	}
+}
+
+// Close gracefully closes the app
+func (a *App) Close() error {
+	if a.storage != nil {
+		return a.storage.Close()
+	}
+	return nil
+}
+
 // monitorEndpoint monitors a single endpoint continuously
 func (a *App) monitorEndpoint(ctx context.Context, check types.CheckConfig, resultChan chan<- types.Result) {
 	ticker := time.NewTicker(check.Interval)
@@ -330,6 +370,14 @@ func (a *App) performCheck(check types.CheckConfig) types.Result {
 		if attempt < maxAttempts {
 			delay := a.calculateRetryDelay(check.Retry, attempt)
 			time.Sleep(delay)
+		}
+	}
+	
+	// Save result to storage
+	if a.storage != nil {
+		if err := a.storage.SaveResult(result); err != nil {
+			// Log error but don't fail the check
+			fmt.Printf("Warning: failed to save result to storage: %v\n", err)
 		}
 	}
 	
