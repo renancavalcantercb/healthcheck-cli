@@ -340,24 +340,29 @@ func (a *App) performCheck(check types.CheckConfig) types.Result {
 	
 	maxAttempts := check.Retry.Attempts
 	if maxAttempts == 0 {
-		maxAttempts = 1 // At least one attempt
+		maxAttempts = 1
 	}
 	
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		// Perform the actual check
+	workerSem := make(chan struct{}, a.config.Global.MaxWorkers)
+	
+	executeCheck := func(attempt int) types.Result {
+		workerSem <- struct{}{}
+		defer func() { <-workerSem }()
+		
+		var checkResult types.Result
 		switch check.Type {
 		case types.CheckTypeHTTP:
 			if a.httpChecker == nil {
 				a.httpChecker = checker.NewHTTPChecker(check.Timeout)
 			}
-			result = a.httpChecker.Check(check)
+			checkResult = a.httpChecker.Check(check)
 		case types.CheckTypeTCP:
 			if a.tcpChecker == nil {
 				a.tcpChecker = checker.NewTCPChecker(check.Timeout)
 			}
-			result = a.tcpChecker.Check(check)
+			checkResult = a.tcpChecker.Check(check)
 		default:
-			result = types.Result{
+			checkResult = types.Result{
 				Name:      check.Name,
 				URL:       check.URL,
 				Status:    types.StatusError,
@@ -365,23 +370,30 @@ func (a *App) performCheck(check types.CheckConfig) types.Result {
 				Timestamp: time.Now(),
 			}
 		}
-		
-		// If check succeeded or we're out of attempts, return
-		if result.IsHealthy() || attempt >= maxAttempts {
+		return checkResult
+	}
+	
+	resultChan := make(chan types.Result, maxAttempts)
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		go func(attemptNum int) {
+			checkResult := executeCheck(attemptNum)
+			resultChan <- checkResult
+		}(attempt)
+	}
+	
+	for i := 0; i < maxAttempts; i++ {
+		attemptResult := <-resultChan
+		if attemptResult.IsHealthy() {
+			result = attemptResult
 			break
 		}
-		
-		// Wait before retry (with backoff)
-		if attempt < maxAttempts {
-			delay := a.calculateRetryDelay(check.Retry, attempt)
-			time.Sleep(delay)
+		if i == maxAttempts-1 {
+			result = attemptResult
 		}
 	}
 	
-	// Save result to storage
 	if a.storage != nil {
 		if err := a.storage.SaveResult(result); err != nil {
-			// Log error but don't fail the check
 			fmt.Printf("Warning: failed to save result to storage: %v\n", err)
 		}
 	}
