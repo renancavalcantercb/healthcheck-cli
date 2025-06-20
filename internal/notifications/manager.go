@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/renancavalcantercb/healthcheck-cli/internal/config"
+	"github.com/renancavalcantercb/healthcheck-cli/pkg/interfaces"
 	"github.com/renancavalcantercb/healthcheck-cli/pkg/types"
 )
 
@@ -120,20 +121,25 @@ func (m *Manager) checkCooldown(name string) bool {
 }
 
 // UpdateConfig updates the manager configuration and returns the manager
-func (m *Manager) UpdateConfig(config *config.Config) *Manager {
-	m.config = config
-	
-	// Reinitialize notifiers if needed
-	if config.Notifications.Email.Enabled {
-		m.emailNotifier = NewEmailNotifier(config.Notifications.Email)
+func (m *Manager) UpdateConfig(cfg interface{}) interfaces.NotificationManager {
+	if newConfig, ok := cfg.(*config.Config); ok {
+		m.config = newConfig
+		
+		// Reinitialize notifiers if needed
+		if newConfig.Notifications.Email.Enabled {
+			m.emailNotifier = NewEmailNotifier(newConfig.Notifications.Email)
+		} else {
+			m.emailNotifier = nil
+		}
+		
+		if newConfig.Notifications.Discord.Enabled {
+			m.discordNotifier = NewDiscordNotifier(newConfig.Notifications.Discord)
+		} else {
+			m.discordNotifier = nil
+		}
 	} else {
-		m.emailNotifier = nil
-	}
-	
-	if config.Notifications.Discord.Enabled {
-		m.discordNotifier = NewDiscordNotifier(config.Notifications.Discord)
-	} else {
-		m.discordNotifier = nil
+		log.Printf("Warning: invalid config type provided to UpdateConfig")
+		return m
 	}
 	
 	return m

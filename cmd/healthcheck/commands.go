@@ -3,11 +3,12 @@ package main
 import (
 	"time"
 
+	"github.com/renancavalcantercb/healthcheck-cli/pkg/interfaces"
 	"github.com/spf13/cobra"
 )
 
 // setupCommands creates and configures all CLI commands
-func setupCommands(app *App) *cobra.Command {
+func setupCommands(app interfaces.Application) *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "healthcheck",
 		Short: "A powerful health checking CLI tool",
@@ -26,7 +27,7 @@ func setupCommands(app *App) *cobra.Command {
 			url := args[0]
 			interval, _ := cmd.Flags().GetDuration("interval")
 			daemon, _ := cmd.Flags().GetBool("daemon")
-			return app.StartQuick(url, interval, daemon)
+			return app.QuickCheck(url, interval, daemon)
 		},
 	}
 	quickCmd.Flags().DurationP("interval", "i", 30*time.Second, "Check interval")
@@ -40,7 +41,7 @@ func setupCommands(app *App) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			configFile := args[0]
 			daemon, _ := cmd.Flags().GetBool("daemon")
-			return app.StartWithConfig(configFile, daemon)
+			return app.LoadConfigAndRun(configFile, daemon)
 		},
 	}
 	monitorCmd.Flags().BoolP("daemon", "d", false, "Run in daemon mode")
@@ -69,7 +70,7 @@ func setupCommands(app *App) *cobra.Command {
 			configFile, _ := cmd.Flags().GetString("config")
 			
 			if configFile != "" {
-				if err := app.LoadConfigForStatus(configFile); err != nil {
+				if err := app.Config().Load(configFile); err != nil {
 					return err
 				}
 			}
@@ -95,7 +96,7 @@ func setupCommands(app *App) *cobra.Command {
 			serviceName := args[0]
 			limit, _ := cmd.Flags().GetInt("limit")
 			since, _ := cmd.Flags().GetString("since")
-			return app.ShowHistory(serviceName, limit, since)
+			return ShowHistory(app, serviceName, limit, since)
 		},
 	}
 	historyCmd.Flags().IntP("limit", "l", 50, "Maximum number of records to show")
@@ -106,7 +107,7 @@ func setupCommands(app *App) *cobra.Command {
 		Use:   "db-info",
 		Short: "Show database information",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return app.ShowDatabaseInfo()
+			return ShowDatabaseInfo(app)
 		},
 	}
 
@@ -136,7 +137,7 @@ func setupCommands(app *App) *cobra.Command {
 }
 
 // setupConfigCommands creates configuration-related commands
-func setupConfigCommands(app *App) *cobra.Command {
+func setupConfigCommands(app interfaces.Application) *cobra.Command {
 	configCmd := &cobra.Command{
 		Use:   "config",
 		Short: "Configuration management",
@@ -147,7 +148,7 @@ func setupConfigCommands(app *App) *cobra.Command {
 		Short: "Validate a configuration file",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return app.ValidateConfig(args[0])
+			return ValidateConfig(args[0])
 		},
 	}
 
@@ -160,7 +161,7 @@ func setupConfigCommands(app *App) *cobra.Command {
 			if len(args) > 0 {
 				outputFile = args[0]
 			}
-			return app.GenerateExampleConfig(outputFile)
+			return GenerateExampleConfig(outputFile)
 		},
 	}
 
@@ -169,7 +170,7 @@ func setupConfigCommands(app *App) *cobra.Command {
 }
 
 // setupStatsCommands creates statistics-related commands
-func setupStatsCommands(app *App) *cobra.Command {
+func setupStatsCommands(app interfaces.Application) *cobra.Command {
 	statsCmd := &cobra.Command{
 		Use:   "stats [service-name]",
 		Short: "Show statistics from stored data",
@@ -181,7 +182,7 @@ func setupStatsCommands(app *App) *cobra.Command {
 			}
 			since, _ := cmd.Flags().GetString("since")
 			jsonOutput, _ := cmd.Flags().GetBool("json")
-			return app.ShowStats(serviceName, since, jsonOutput)
+			return ShowStats(app, serviceName, since, jsonOutput)
 		},
 	}
 	statsCmd.Flags().StringP("since", "s", "24h", "Show stats since duration (e.g., 1h, 24h, 7d)")

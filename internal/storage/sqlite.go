@@ -214,7 +214,7 @@ func (s *SQLiteStorage) updateServiceMetadata(name, url, checkType string) error
 }
 
 // GetServiceStats returns aggregated statistics for a service
-func (s *SQLiteStorage) GetServiceStats(name string, since time.Time) (*ServiceStats, error) {
+func (s *SQLiteStorage) GetServiceStats(name string, since time.Time) (*types.ServiceStats, error) {
 	query := `
 	SELECT 
 		name,
@@ -233,7 +233,7 @@ func (s *SQLiteStorage) GetServiceStats(name string, since time.Time) (*ServiceS
 	WHERE name = ? AND timestamp >= ?
 	GROUP BY name, url, check_type`
 
-	var stats ServiceStats
+	var stats types.ServiceStats
 	var lastSuccess, lastFailure sql.NullTime
 
 	err := s.db.QueryRow(query, name, since).Scan(
@@ -275,7 +275,7 @@ func (s *SQLiteStorage) GetServiceStats(name string, since time.Time) (*ServiceS
 }
 
 // GetAllServiceStats returns stats for all services
-func (s *SQLiteStorage) GetAllServiceStats(since time.Time) ([]ServiceStats, error) {
+func (s *SQLiteStorage) GetAllServiceStats(since time.Time) ([]types.ServiceStats, error) {
 	query := `
 	SELECT DISTINCT name FROM service_metadata ORDER BY name`
 
@@ -285,7 +285,7 @@ func (s *SQLiteStorage) GetAllServiceStats(since time.Time) ([]ServiceStats, err
 	}
 	defer rows.Close()
 
-	var allStats []ServiceStats
+	var allStats []types.ServiceStats
 	for rows.Next() {
 		var name string
 		if err := rows.Scan(&name); err != nil {
@@ -305,7 +305,7 @@ func (s *SQLiteStorage) GetAllServiceStats(since time.Time) ([]ServiceStats, err
 }
 
 // GetRecentResults returns recent results for all services
-func (s *SQLiteStorage) GetRecentResults(limit int) ([]CheckResult, error) {
+func (s *SQLiteStorage) GetRecentResults(limit int) ([]types.CheckResult, error) {
 	query := `
 	SELECT id, name, url, check_type, status, error, response_time_ms, 
 		   status_code, body_size, timestamp, created_at
@@ -319,9 +319,9 @@ func (s *SQLiteStorage) GetRecentResults(limit int) ([]CheckResult, error) {
 	}
 	defer rows.Close()
 
-	var results []CheckResult
+	var results []types.CheckResult
 	for rows.Next() {
-		var result CheckResult
+		var result types.CheckResult
 		var errorStr sql.NullString
 		var statusCode, bodySize sql.NullInt64
 
@@ -362,7 +362,7 @@ func (s *SQLiteStorage) GetRecentResults(limit int) ([]CheckResult, error) {
 }
 
 // GetServiceHistory returns historical data for a specific service
-func (s *SQLiteStorage) GetServiceHistory(name string, since time.Time, limit int) ([]CheckResult, error) {
+func (s *SQLiteStorage) GetServiceHistory(name string, since time.Time, limit int) ([]types.CheckResult, error) {
 	query := `
 	SELECT id, name, url, check_type, status, error, response_time_ms, 
 		   status_code, body_size, timestamp, created_at
@@ -377,9 +377,9 @@ func (s *SQLiteStorage) GetServiceHistory(name string, since time.Time, limit in
 	}
 	defer rows.Close()
 
-	var results []CheckResult
+	var results []types.CheckResult
 	for rows.Next() {
-		var result CheckResult
+		var result types.CheckResult
 		var errorStr sql.NullString
 		var statusCode, bodySize sql.NullInt64
 

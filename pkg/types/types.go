@@ -4,6 +4,51 @@ import (
 	"time"
 )
 
+// GlobalConfig contains global application settings
+type GlobalConfig struct {
+	MaxWorkers        int           `yaml:"max_workers"`
+	DefaultTimeout    time.Duration `yaml:"default_timeout"`
+	DefaultInterval   time.Duration `yaml:"default_interval"`
+	StoragePath       string        `yaml:"storage_path"`
+	LogLevel          string        `yaml:"log_level"`
+	DisableColors     bool          `yaml:"disable_colors"`
+	UserAgent         string        `yaml:"user_agent"`
+	MaxRetries        int           `yaml:"max_retries"`
+	RetryDelay        time.Duration `yaml:"retry_delay"`
+}
+
+// ServiceStats represents aggregated statistics for a service
+type ServiceStats struct {
+	Name              string        `json:"name"`
+	URL               string        `json:"url"`
+	CheckType         string        `json:"check_type"`
+	TotalChecks       int64         `json:"total_checks"`
+	SuccessfulChecks  int64         `json:"successful_checks"`
+	FailedChecks      int64         `json:"failed_checks"`
+	AvgResponseTimeMs float64       `json:"avg_response_time_ms"`
+	MinResponseTimeMs int64         `json:"min_response_time_ms"`
+	MaxResponseTimeMs int64         `json:"max_response_time_ms"`
+	UptimePercent     float64       `json:"uptime_percent"`
+	LastCheck         time.Time     `json:"last_check"`
+	LastSuccess       time.Time     `json:"last_success"`
+	LastFailure       time.Time     `json:"last_failure"`
+}
+
+// CheckResult represents a stored check result
+type CheckResult struct {
+	ID             int64     `json:"id"`
+	Name           string    `json:"name"`
+	URL            string    `json:"url"`
+	CheckType      string    `json:"check_type"`
+	Status         int       `json:"status"`
+	Error          string    `json:"error"`
+	ResponseTimeMs int64     `json:"response_time_ms"`
+	StatusCode     int       `json:"status_code"`
+	BodySize       int64     `json:"body_size"`
+	Timestamp      time.Time `json:"timestamp"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
 // Status represents the health status of an endpoint
 type Status int
 
