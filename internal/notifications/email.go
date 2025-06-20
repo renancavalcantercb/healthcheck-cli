@@ -10,6 +10,7 @@ import (
 	"text/template"
 
 	"github.com/renancavalcantercb/healthcheck-cli/internal/config"
+	"github.com/renancavalcantercb/healthcheck-cli/pkg/security"
 	"github.com/renancavalcantercb/healthcheck-cli/pkg/types"
 )
 
@@ -23,8 +24,8 @@ func NewEmailNotifier(config config.EmailConfig) *EmailNotifier {
 	log.Printf("📧 Inicializando notificador de email com configuração:")
 	log.Printf("   Host: %s", config.SMTPHost)
 	log.Printf("   Porta: %d", config.SMTPPort)
-	log.Printf("   From: %s", config.From)
-	log.Printf("   To: %v", config.To)
+	log.Printf("   From: %s", security.MaskEmail(config.From))
+	log.Printf("   To: %v", security.MaskEmailList(config.To))
 	log.Printf("   TLS: %v", config.TLS)
 	return &EmailNotifier{
 		config: config,
@@ -67,20 +68,27 @@ func (n *EmailNotifier) Send(result types.Result) error {
 	
 	var auth smtp.Auth
 	if n.config.Username != "" && n.config.Password != "" {
+		// Enforce TLS when using authentication for security
+		if !n.config.TLS {
+			return fmt.Errorf("TLS is required when using SMTP authentication to protect credentials")
+		}
 		auth = smtp.PlainAuth("", n.config.Username, n.config.Password, n.config.SMTPHost)
-		log.Printf("📧 Usando autenticação SMTP")
+		log.Printf("📧 Usando autenticação SMTP com TLS")
 	} else {
 		log.Printf("📧 Sem autenticação SMTP")
 	}
 
-	// For non-TLS connections, we need to use the hostname
+	// For non-TLS connections (only allowed without authentication)
 	if !n.config.TLS {
+		if auth != nil {
+			return fmt.Errorf("TLS is required when using authentication")
+		}
 		host, _, err := net.SplitHostPort(addr)
 		if err != nil {
 			log.Printf("❌ Erro ao dividir host/porta: %v", err)
 			return fmt.Errorf("invalid SMTP address: %w", err)
 		}
-		log.Printf("📧 Tentando conexão SMTP sem TLS para %s", host)
+		log.Printf("📧 Tentando conexão SMTP sem TLS para %s (sem autenticação)", host)
 		err = smtp.SendMail(addr, auth, host, n.config.To, []byte(msg))
 		if err != nil {
 			log.Printf("❌ Erro ao enviar email: %v", err)

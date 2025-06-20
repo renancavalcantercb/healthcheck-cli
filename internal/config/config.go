@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/renancavalcantercb/healthcheck-cli/pkg/security"
 	"github.com/renancavalcantercb/healthcheck-cli/pkg/types"
 	"gopkg.in/yaml.v3"
 )
@@ -141,6 +142,11 @@ func LoadConfig(filePath string) (*Config, error) {
 	// If no file specified, return defaults
 	if filePath == "" {
 		return config, nil
+	}
+	
+	// Validate file path for security
+	if err := security.ValidateFilePath(filePath); err != nil {
+		return nil, fmt.Errorf("invalid config file path: %w", err)
 	}
 	
 	// Check if file exists
@@ -477,7 +483,8 @@ func SaveExample(filePath string) error {
 		return nil
 	}
 	
-	if err := os.WriteFile(filePath, []byte(fullContent), 0644); err != nil {
+	// Use secure file permissions (0600 - owner read/write only) for config files
+	if err := os.WriteFile(filePath, []byte(fullContent), 0600); err != nil {
 		return fmt.Errorf("failed to write example config: %w", err)
 	}
 	

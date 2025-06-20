@@ -2,12 +2,14 @@ package checker
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/renancavalcantercb/healthcheck-cli/pkg/security"
 	"github.com/renancavalcantercb/healthcheck-cli/pkg/types"
 )
 
@@ -16,7 +18,7 @@ type HTTPChecker struct {
 	client *http.Client
 }
 
-// NewHTTPChecker creates a new HTTP checker
+// NewHTTPChecker creates a new HTTP checker with secure defaults
 func NewHTTPChecker(timeout time.Duration) *HTTPChecker {
 	return &HTTPChecker{
 		client: &http.Client{
@@ -25,6 +27,21 @@ func NewHTTPChecker(timeout time.Duration) *HTTPChecker {
 				MaxIdleConns:        100,
 				MaxIdleConnsPerHost: 10,
 				IdleConnTimeout:     90 * time.Second,
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: false, // Validate TLS certificates
+					MinVersion:         tls.VersionTLS12,
+				},
+			},
+			// Limit redirects to prevent infinite loops
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= 5 {
+					return fmt.Errorf("too many redirects (max 5)")
+				}
+				// Validate redirect URL for security
+				if err := security.ValidateURL(req.URL.String()); err != nil {
+					return fmt.Errorf("redirect URL validation failed: %w", err)
+				}
+				return nil
 			},
 		},
 	}
@@ -35,7 +52,7 @@ func (h *HTTPChecker) Name() string {
 	return "HTTP"
 }
 
-// Check performs an HTTP health check
+// Check performs an HTTP health check with security validations
 func (h *HTTPChecker) Check(check types.CheckConfig) types.Result {
 	start := time.Now()
 	
@@ -43,6 +60,22 @@ func (h *HTTPChecker) Check(check types.CheckConfig) types.Result {
 		Name:      check.Name,
 		URL:       check.URL,
 		Timestamp: start,
+	}
+	
+	// Validate URL for security (prevent SSRF)
+	if err := security.ValidateURL(check.URL); err != nil {
+		result.Status = types.StatusError
+		result.Error = fmt.Sprintf("URL validation failed: %v", err)
+		result.ResponseTime = time.Since(start)
+		return result
+	}
+	
+	// Validate headers for security (prevent injection)
+	if err := security.ValidateHTTPHeaders(check.Headers); err != nil {
+		result.Status = types.StatusError
+		result.Error = fmt.Sprintf("Header validation failed: %v", err)
+		result.ResponseTime = time.Since(start)
+		return result
 	}
 	
 	// Create request context with timeout
@@ -58,7 +91,7 @@ func (h *HTTPChecker) Check(check types.CheckConfig) types.Result {
 		return result
 	}
 	
-	// Add headers
+	// Add headers (already validated above)
 	for key, value := range check.Headers {
 		req.Header.Set(key, value)
 	}
@@ -78,7 +111,12 @@ func (h *HTTPChecker) Check(check types.CheckConfig) types.Result {
 		result.Error = fmt.Sprintf("Request failed: %v", err)
 		return result
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			// Log the error but don't override the main result
+			fmt.Printf("Warning: failed to close response body: %v\n", closeErr)
+		}
+	}()
 	
 	// Read response body
 	body, err := io.ReadAll(resp.Body)

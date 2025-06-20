@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -48,8 +49,13 @@ type ServiceStats struct {
 	LastFailure       time.Time     `json:"last_failure"`
 }
 
-// NewSQLiteStorage creates a new SQLite storage instance
+// NewSQLiteStorage creates a new SQLite storage instance with secure file permissions
 func NewSQLiteStorage(dbPath string) (*SQLiteStorage, error) {
+	// Set secure file permissions before creating the database file
+	if err := ensureSecureFilePermissions(dbPath); err != nil {
+		return nil, fmt.Errorf("failed to set secure permissions: %w", err)
+	}
+
 	db, err := sql.Open("sqlite3", dbPath+"?_timeout=5000&_journal_mode=WAL")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
@@ -68,7 +74,37 @@ func NewSQLiteStorage(dbPath string) (*SQLiteStorage, error) {
 		log.Printf("Warning: failed to create indexes: %v", err)
 	}
 
+	// Ensure permissions are correct after database creation
+	if err := ensureSecureFilePermissions(dbPath); err != nil {
+		log.Printf("Warning: failed to set secure permissions after creation: %v", err)
+	}
+
 	return storage, nil
+}
+
+// ensureSecureFilePermissions ensures the database file has secure permissions (0600 - owner read/write only)
+func ensureSecureFilePermissions(dbPath string) error {
+	// Check if file exists
+	if _, err := os.Stat(dbPath); err != nil {
+		if os.IsNotExist(err) {
+			// File doesn't exist yet, create with secure permissions
+			file, err := os.OpenFile(dbPath, os.O_CREATE|os.O_WRONLY, 0600)
+			if err != nil {
+				return fmt.Errorf("failed to create database file with secure permissions: %w", err)
+			}
+			file.Close()
+			return nil
+		}
+		return fmt.Errorf("failed to stat database file: %w", err)
+	}
+
+	// File exists, set secure permissions
+	if err := os.Chmod(dbPath, 0600); err != nil {
+		return fmt.Errorf("failed to set secure permissions on database file: %w", err)
+	}
+
+	log.Printf("🔒 Database file permissions set to 0600 (owner read/write only): %s", dbPath)
+	return nil
 }
 
 // Close closes the database connection

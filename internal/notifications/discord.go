@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/renancavalcantercb/healthcheck-cli/internal/config"
+	"github.com/renancavalcantercb/healthcheck-cli/pkg/security"
 	"github.com/renancavalcantercb/healthcheck-cli/pkg/types"
 )
 
@@ -20,9 +21,9 @@ type DiscordNotifier struct {
 // NewDiscordNotifier creates a new Discord notifier
 func NewDiscordNotifier(config config.DiscordConfig) *DiscordNotifier {
 	log.Printf("📢 Initializing Discord notifier with configuration:")
-	log.Printf("   Webhook URL: %s", maskWebhookURL(config.WebhookURL))
+	log.Printf("   Webhook URL: %s", security.MaskURL(config.WebhookURL))
 	log.Printf("   Username: %s", config.Username)
-	log.Printf("   Avatar URL: %s", config.AvatarURL)
+	log.Printf("   Avatar URL: %s", security.MaskURL(config.AvatarURL))
 	return &DiscordNotifier{
 		config: config,
 	}
