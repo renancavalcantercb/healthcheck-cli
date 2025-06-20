@@ -39,3 +39,19 @@ go.work
 
 
 *.db
+
+# Configuration files with sensitive data
+test-email-config.yml
+real-config.yml
+*.local.yml
+*-config.yml
+config/*.yml
+config/*.yaml
+
+# Build artifacts
+bin/
+dist/
+
+# Coverage reports
+coverage.out
+coverage.html
