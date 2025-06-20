@@ -82,7 +82,9 @@ func (m *Manager) Notify(result types.Result) error {
 	}
 
 	// Update last notification time
+	m.mu.Lock()
 	m.lastNotification[result.Name] = time.Now()
+	m.mu.Unlock()
 
 	return nil
 }
@@ -105,11 +107,34 @@ func (m *Manager) shouldNotify(result types.Result) bool {
 
 // checkCooldown checks if enough time has passed since the last notification
 func (m *Manager) checkCooldown(name string) bool {
+	m.mu.RLock()
 	lastTime, exists := m.lastNotification[name]
+	m.mu.RUnlock()
+	
 	if !exists {
 		return true
 	}
 
 	cooldown := m.config.Notifications.GlobalRules.Cooldown
 	return time.Since(lastTime) >= cooldown
+}
+
+// UpdateConfig updates the manager configuration and returns the manager
+func (m *Manager) UpdateConfig(config *config.Config) *Manager {
+	m.config = config
+	
+	// Reinitialize notifiers if needed
+	if config.Notifications.Email.Enabled {
+		m.emailNotifier = NewEmailNotifier(config.Notifications.Email)
+	} else {
+		m.emailNotifier = nil
+	}
+	
+	if config.Notifications.Discord.Enabled {
+		m.discordNotifier = NewDiscordNotifier(config.Notifications.Discord)
+	} else {
+		m.discordNotifier = nil
+	}
+	
+	return m
 } 
