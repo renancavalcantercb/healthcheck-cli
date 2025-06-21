@@ -1,6 +1,6 @@
 # HealthCheck CLI
 
-A powerful command-line tool for monitoring the health of your endpoints with support for HTTP and TCP checks, real-time notifications via email and Discord, and a beautiful terminal UI.
+A powerful command-line tool for monitoring the health of your endpoints with support for HTTP, TCP, and SSL certificate checks, real-time notifications via email and Discord, and a beautiful terminal UI.
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
 ![Go Version](https://img.shields.io/badge/go-1.24.2-blue.svg)
@@ -11,6 +11,7 @@ A powerful command-line tool for monitoring the health of your endpoints with su
 - 🔍 **Multiple Check Types**
   - HTTP/HTTPS endpoints
   - TCP ports
+  - SSL certificate monitoring
   - Custom headers and body
   - Response validation
   - Response time monitoring
@@ -94,12 +95,48 @@ checks:
     expected:
       status: 200
       body_contains: "healthy"
+  
+  - name: "SSL Certificate Check"
+    type: "ssl"
+    url: "https://api.example.com"
+    interval: 24h
+    timeout: 10s
+    expected:
+      cert_expiry_days: 30
+      cert_valid_domains: ["api.example.com"]
 ```
 
 3. Start monitoring:
 ```bash
 healthcheck monitor config.yml
 ```
+
+## Check Types
+
+HealthCheck CLI supports three types of monitoring:
+
+### 1. HTTP/HTTPS Checks (`type: http`)
+Monitor web endpoints, APIs, and web services:
+- **Status code validation** (200, 404, etc.)
+- **Response body content** (contains/not contains text)
+- **Response time monitoring**
+- **Custom headers and request body**
+- **Content-Type validation**
+- **Minimum body size checks**
+
+### 2. TCP Port Checks (`type: tcp`)
+Monitor TCP services and port connectivity:
+- **Port connectivity testing**
+- **Connection time monitoring**
+- **Network service availability**
+
+### 3. SSL Certificate Checks (`type: ssl`)
+Monitor SSL/TLS certificate health:
+- **Certificate expiration monitoring**
+- **Domain validation (CN + SAN)**
+- **SSL handshake performance**
+- **Certificate chain validation**
+- **Issuer and subject information**
 
 ## Configuration
 
@@ -126,6 +163,24 @@ checks:
       status: 200
       body_contains: "healthy"
       response_time_max: 2s
+
+  - name: "Database TCP Check"
+    type: "tcp"
+    url: "db.example.com:5432"
+    interval: 60s
+    timeout: 5s
+    expected:
+      response_time_max: 500ms
+
+  - name: "SSL Certificate Monitor"
+    type: "ssl"
+    url: "https://api.example.com"
+    interval: 24h
+    timeout: 10s
+    expected:
+      cert_expiry_days: 30      # Alert if expires within 30 days
+      cert_valid_domains: ["api.example.com", "www.api.example.com"]
+      response_time_max: 5s
 ```
 
 ### Email Notifications
@@ -154,6 +209,45 @@ notifications:
     username: "HealthCheck Bot"
     avatar_url: "https://raw.githubusercontent.com/renancavalcantercb/healthcheck-cli/main/assets/logo.png"
 ```
+
+### SSL Certificate Monitoring
+
+Monitor SSL certificates for expiration and validity:
+
+```yaml
+checks:
+  - name: "Production API SSL"
+    type: "ssl"
+    url: "https://api.production.com"
+    interval: 12h                    # Check twice daily
+    timeout: 10s
+    expected:
+      cert_expiry_days: 14          # Alert if expires within 14 days
+      cert_valid_domains:           # Verify certificate covers these domains
+        - "api.production.com"
+        - "www.api.production.com"
+      response_time_max: 3s         # Alert if SSL handshake is slow
+    tags: ["ssl", "production", "critical"]
+
+  # Alternative host:port format
+  - name: "Database SSL"
+    type: "ssl"
+    url: "db.internal.com:5432"
+    interval: 24h
+    timeout: 5s
+    expected:
+      cert_expiry_days: 30
+      cert_valid_domains: ["db.internal.com"]
+      response_time_max: 2s
+    tags: ["ssl", "database"]
+```
+
+**SSL Check Features:**
+- **Certificate expiration monitoring** - Get alerts before certificates expire
+- **Domain validation** - Ensure certificates cover expected domains (CN + SAN)
+- **SSL handshake performance** - Monitor connection establishment time
+- **Detailed certificate info** - Subject, issuer, expiry date, and valid domains
+- **Flexible URL formats** - Support both `https://domain.com` and `domain.com:443`
 
 ### Notification Rules
 
@@ -201,6 +295,10 @@ healthcheck quick https://api.example.com/health
 
 # Test endpoint immediately
 healthcheck test https://api.example.com/health
+
+# Test SSL certificate
+healthcheck test https://github.com  # Will use HTTP checker
+# For dedicated SSL certificate testing, use configuration files
 ```
 
 ### View Status
