@@ -1,0 +1,126 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            goos: linux
+            goarch: amd64
+          - os: linux
+            arch: arm64
+            goos: linux
+            goarch: arm64
+          - os: darwin
+            arch: amd64
+            goos: darwin
+            goarch: amd64
+          - os: darwin
+            arch: arm64
+            goos: darwin
+            goarch: arm64
+          - os: windows
+            arch: amd64
+            goos: windows
+            goarch: amd64
+            ext: .exe
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-multilib
+        
+    - name: Build binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: |
+        binary_name="healthcheck-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
+        go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o "$binary_name" cmd/healthcheck/*.go
+        
+        # Create archive
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          zip "${binary_name}.zip" "$binary_name"
+          echo "ASSET=${binary_name}.zip" >> $GITHUB_ENV
+        else
+          tar -czf "${binary_name}.tar.gz" "$binary_name"
+          echo "ASSET=${binary_name}.tar.gz" >> $GITHUB_ENV
+        fi
+
+    - name: Upload Release Asset
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ env.ASSET }}
+        path: ${{ env.ASSET }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          **/*.tar.gz
+          **/*.zip
+        generate_release_notes: true
+        body: |
+          ## 🚀 HealthCheck CLI ${{ github.ref_name }}
+          
+          ### 📥 Installation
+          
+          **Quick install:**
+          ```bash
+          curl -sSL https://raw.githubusercontent.com/renancavalcantercb/healthcheck-cli/main/install.sh | bash
+          ```
+          
+          **Manual download:**
+          1. Download the appropriate binary for your platform below
+          2. Extract the archive
+          3. Move the binary to your PATH (e.g., `/usr/local/bin/`)
+          4. Make it executable: `chmod +x healthcheck`
+          
+          ### 🔍 Platform Support
+          
+          - **Linux**: AMD64, ARM64
+          - **macOS**: Intel (AMD64), Apple Silicon (ARM64)  
+          - **Windows**: AMD64
+          
+          ### ✅ Features
+          
+          - 🌐 HTTP/HTTPS endpoint monitoring
+          - 🔌 TCP port connectivity checks
+          - 🔒 SSL certificate expiration monitoring
+          - 📧 Email & Discord notifications
+          - 📊 Real-time terminal dashboard
+          - 💾 SQLite & JSON storage backends
+          - ⚙️ Flexible YAML configuration
+          
+          See the [README](https://github.com/renancavalcantercb/healthcheck-cli/blob/main/README.md) for full documentation.
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
