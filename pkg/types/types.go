@@ -145,6 +145,11 @@ const (
 	CheckTypePing CheckType = "ping"
 )
 
+// String returns the string representation of CheckType
+func (c CheckType) String() string {
+	return string(c)
+}
+
 // Checker interface for different types of health checks
 type Checker interface {
 	Check(check CheckConfig) Result

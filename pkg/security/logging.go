@@ -76,9 +76,27 @@ func SanitizeForLogs(message string) string {
 	}
 	
 	result := message
+	lowerResult := strings.ToLower(result)
+	
 	for _, pattern := range patterns {
-		if strings.Contains(strings.ToLower(result), pattern) {
-			result = strings.ReplaceAll(result, pattern, pattern+"***")
+		if strings.Contains(lowerResult, pattern) {
+			// Find the pattern and replace the value after it
+			start := strings.Index(lowerResult, pattern)
+			if start >= 0 {
+				// Find the end of the value (space or end of string)
+				valueStart := start + len(pattern)
+				valueEnd := strings.Index(lowerResult[valueStart:], " ")
+				if valueEnd == -1 {
+					valueEnd = len(lowerResult)
+				} else {
+					valueEnd += valueStart
+				}
+				
+				// Replace the original case pattern with masked version
+				originalPattern := result[start:start+len(pattern)]
+				result = result[:start] + strings.ToLower(originalPattern) + "***" + result[valueEnd:]
+				lowerResult = strings.ToLower(result)
+			}
 		}
 	}
 	
