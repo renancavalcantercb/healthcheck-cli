@@ -51,7 +51,16 @@ config/*.yaml
 # Build artifacts
 bin/
 dist/
+releases/
 
 # Coverage reports
 coverage.out
 coverage.html
+
+# Local binary
+healthcheck
+healthcheck.exe
+
+# Local test files
+ssl-test*.yml
+test-*.yml

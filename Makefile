@@ -26,10 +26,22 @@ build-all: deps
 	@echo "🔨 Building for multiple platforms..."
 	@mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/healthcheck
+	CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 ./cmd/healthcheck
 	CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 ./cmd/healthcheck
 	CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/healthcheck
 	CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./cmd/healthcheck
 	@echo "✅ Multi-platform build complete"
+
+# Build releases (current platform only for local testing)
+build-releases: deps
+	@echo "📦 Building release for current platform..."
+	@mkdir -p releases
+	@rm -rf releases/*
+	# Current platform
+	CGO_ENABLED=1 go build $(LDFLAGS) -o releases/$(BINARY_NAME)-$(shell go env GOOS)-$(shell go env GOARCH) ./cmd/healthcheck
+	cd releases && tar -czf $(BINARY_NAME)-$(shell go env GOOS)-$(shell go env GOARCH).tar.gz $(BINARY_NAME)-$(shell go env GOOS)-$(shell go env GOARCH) && rm $(BINARY_NAME)-$(shell go env GOOS)-$(shell go env GOARCH)
+	@echo "✅ Release built in releases/ directory"
+	@ls -la releases/
 
 # Run tests
 test:
@@ -90,16 +102,17 @@ example-config: build
 # Help
 help:
 	@echo "Available targets:"
-	@echo "  build        - Build binary for current platform"
-	@echo "  build-all    - Build for all platforms"
-	@echo "  test         - Run tests"
-	@echo "  test-coverage- Run tests with coverage"
-	@echo "  clean        - Clean build artifacts"
-	@echo "  install      - Install to system"
-	@echo "  dev          - Development mode"
-	@echo "  run          - Quick test run"
-	@echo "  fmt          - Format code"
-	@echo "  lint         - Lint code"
-	@echo "  tidy         - Tidy dependencies"
-	@echo "  deps         - Install dependencies"
-	@echo "  help         - Show this help"
+	@echo "  build         - Build binary for current platform"
+	@echo "  build-all     - Build for all platforms"
+	@echo "  build-releases- Build releases with archives"
+	@echo "  test          - Run tests"
+	@echo "  test-coverage - Run tests with coverage"
+	@echo "  clean         - Clean build artifacts"
+	@echo "  install       - Install to system"
+	@echo "  dev           - Development mode"
+	@echo "  run           - Quick test run"
+	@echo "  fmt           - Format code"
+	@echo "  lint          - Lint code"
+	@echo "  tidy          - Tidy dependencies"
+	@echo "  deps          - Install dependencies"
+	@echo "  help          - Show this help"
