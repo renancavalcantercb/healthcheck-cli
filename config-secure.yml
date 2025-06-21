@@ -1,0 +1,98 @@
+# HealthCheck CLI Configuration Example - Secure Version
+# Uses environment variables for sensitive data
+
+global:
+  max_workers: 10
+  default_timeout: 15s
+  default_interval: 30s
+  storage_path: ./healthcheck.db
+  log_level: info
+  user_agent: "HealthCheck-CLI/1.0"
+  max_retries: 3
+  retry_delay: 5s
+
+notifications:
+  email:
+    enabled: true
+    smtp_host: smtp.gmail.com
+    smtp_port: 587
+    username: "${EMAIL_USERNAME}"
+    password: "${EMAIL_PASSWORD}"
+    from: "${EMAIL_FROM}"
+    to:
+      - "${EMAIL_TO}"
+    subject: "🚨 HealthCheck Alert: {{.Name}}"
+    tls: true
+
+  discord:
+    enabled: true
+    webhook_url: "${DISCORD_WEBHOOK_URL}"
+    username: "HealthCheck Bot"
+
+  slack:
+    enabled: false
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+    channel: "#alerts"
+    username: "HealthCheck Bot"
+    icon_emoji: ":hospital:"
+
+  global_rules:
+    on_success: false
+    on_failure: true
+    on_recovery: true
+    on_slow_response: true
+    cooldown: 5m
+    max_alerts: 10
+    escalation_delay: 15m
+
+checks:
+  - name: "API Health Check"
+    type: http
+    url: "https://httpbin.org/status/200"
+    method: GET
+    interval: 30s
+    timeout: 10s
+    headers:
+      Authorization: "Bearer ${API_TOKEN}"
+      User-Agent: "HealthCheck-CLI/1.0"
+    expected:
+      status: 200
+      response_time_max: 3s
+      body_contains: ""
+    retry:
+      attempts: 3
+      delay: 2s
+      backoff: exponential
+      max_delay: 30s
+    tags:
+      - api
+      - critical
+
+  - name: "Database TCP Check"
+    type: tcp
+    url: "httpbin.org:80"
+    interval: 60s
+    timeout: 5s
+    expected:
+      response_time_max: 1s
+    retry:
+      attempts: 2
+      delay: 5s
+      backoff: linear
+    tags:
+      - database
+      - infrastructure
+
+  - name: "External API"
+    type: http
+    url: "https://api.github.com/status"
+    method: GET
+    interval: 120s
+    timeout: 15s
+    expected:
+      status: 200
+      response_time_max: 5s
+      content_type: "application/json"
+    tags:
+      - external
+      - monitoring
