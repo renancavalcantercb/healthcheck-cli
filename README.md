@@ -46,6 +46,31 @@ A powerful command-line tool for monitoring the health of your endpoints with su
 curl -sSL https://raw.githubusercontent.com/renancavalcantercb/healthcheck-cli/main/install.sh | bash
 ```
 
+The script will:
+1. **Try to download** the latest release binary (fastest, no dependencies)
+2. **Fallback to build** from source if release download fails (requires Go + Git)
+
+Installation options:
+- **System-wide** (`/usr/local/bin`) - requires sudo
+- **User-local** (`~/.local/bin`) - no sudo required, auto-adds to PATH
+
+### Download Release (Manual)
+
+Download the latest release for your platform from the [releases page](https://github.com/renancavalcantercb/healthcheck-cli/releases):
+
+```bash
+# Example for Linux AMD64
+wget https://github.com/renancavalcantercb/healthcheck-cli/releases/latest/download/healthcheck-linux-amd64.tar.gz
+tar -xzf healthcheck-linux-amd64.tar.gz
+sudo mv healthcheck-linux-amd64 /usr/local/bin/healthcheck
+chmod +x /usr/local/bin/healthcheck
+```
+
+**Supported Platforms:**
+- Linux: `amd64`, `arm64`
+- macOS: `amd64` (Intel), `arm64` (Apple Silicon)
+- Windows: `amd64`
+
 ### From Source
 
 ```bash
@@ -67,15 +92,20 @@ make install
 git clone https://github.com/renancavalcantercb/healthcheck-cli.git
 cd healthcheck-cli
 
-# Install dependencies
-make deps
+# Build with CGO enabled for SQLite support
+CGO_ENABLED=1 go build -o healthcheck cmd/healthcheck/*.go
 
-# Build and install
-go build -o healthcheck cmd/healthcheck/main.go
+# Install (choose one):
+# Option 1: System-wide (requires sudo)
 sudo mv healthcheck /usr/local/bin/
+
+# Option 2: User-local (no sudo required)
+mkdir -p ~/.local/bin
+mv healthcheck ~/.local/bin/
+export PATH="$PATH:$HOME/.local/bin"  # Add to your shell RC file
 ```
 
-Note: The `go install` command is not currently supported as the project needs to be built with CGO enabled for SQLite support.
+**Note**: The project requires CGO to be enabled for SQLite support. If you get SQLite-related errors, the binary will automatically fall back to file-based storage.
 
 ## Quick Start
 
@@ -356,6 +386,15 @@ The following environment variables can be used in the configuration:
 # Install dependencies
 make deps
 
+# Build for current platform
+make build
+
+# Build for all platforms (requires cross-compilation setup)
+make build-all
+
+# Build release archive for current platform
+make build-releases
+
 # Run tests
 make test
 
@@ -371,6 +410,42 @@ make fmt
 # Lint code
 make lint
 ```
+
+### Creating Releases
+
+For maintainers, to create a new release:
+
+```bash
+# Use the release helper script
+./release.sh v1.0.0
+
+# Or manually:
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
+```
+
+This will trigger GitHub Actions to automatically build cross-platform binaries and create a GitHub release.
+
+## Troubleshooting
+
+### Installation Issues
+
+**Problem**: `mv: No such file or directory` during installation
+- **Solution**: The binary build failed. Check that Go 1.21+ is installed and try building manually
+
+**Problem**: `SQLite requires CGO but binary was compiled with CGO_ENABLED=0`
+- **Solution**: This is expected when using pre-built release binaries. The tool will automatically fall back to JSON file storage with the same functionality
+
+**Problem**: `command not found: healthcheck` after installation
+- **Solution**: If installed locally, restart your terminal or run `source ~/.zshrc` (or your shell's RC file)
+
+### Common Configuration Issues
+
+**Problem**: SSL checks showing validation errors for `host:port` format
+- **Solution**: Ensure the hostname resolves properly. Use `https://domain.com` format if needed
+
+**Problem**: Notifications not working
+- **Solution**: Check that environment variables are set correctly and notification services are enabled
 
 ## Contributing
 
