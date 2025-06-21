@@ -108,15 +108,56 @@ func ShowDatabaseInfo(app interfaces.Application) error {
 
 // ValidateConfig validates a configuration file (CLI wrapper)
 func ValidateConfig(configFile string) error {
+	return ValidateConfigWithEnv(configFile, "")
+}
+
+// ValidateConfigWithEnv validates a configuration file with environment variables (CLI wrapper)
+func ValidateConfigWithEnv(configFile, envFile string) error {
 	fmt.Printf("🔍 Validating configuration file: %s\n", configFile)
 	
-	_, err := config.LoadConfig(configFile)
+	if envFile != "" {
+		fmt.Printf("🔧 Loading environment variables from: %s\n", envFile)
+	}
+	
+	cfg, err := config.LoadConfigWithEnv(configFile, envFile)
 	if err != nil {
 		fmt.Printf("❌ Configuration validation failed: %v\n", err)
 		return err
 	}
 	
+	// Validate environment variables
+	if err := cfg.ValidateEnvironmentVariables(); err != nil {
+		fmt.Printf("❌ Environment variable validation failed: %v\n", err)
+		return err
+	}
+	
 	fmt.Println("✅ Configuration is valid!")
+	fmt.Printf("   📊 Found %d health checks\n", len(cfg.Checks))
+	
+	// Show notification status
+	notifications := []string{}
+	if cfg.Notifications.Email.Enabled {
+		notifications = append(notifications, "Email")
+	}
+	if cfg.Notifications.Slack.Enabled {
+		notifications = append(notifications, "Slack")
+	}
+	if cfg.Notifications.Discord.Enabled {
+		notifications = append(notifications, "Discord")
+	}
+	if cfg.Notifications.Telegram.Enabled {
+		notifications = append(notifications, "Telegram")
+	}
+	if cfg.Notifications.Webhook.Enabled {
+		notifications = append(notifications, "Webhook")
+	}
+	
+	if len(notifications) > 0 {
+		fmt.Printf("   📧 Enabled notifications: %s\n", strings.Join(notifications, ", "))
+	} else {
+		fmt.Printf("   📧 No notifications enabled\n")
+	}
+	
 	return nil
 }
 

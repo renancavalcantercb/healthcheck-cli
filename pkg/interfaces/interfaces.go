@@ -74,5 +74,6 @@ type Application interface {
 	
 	// Configuration-based operations
 	LoadConfigAndRun(configFile string, daemon bool) error
+	LoadConfigAndRunWithEnv(configFile, envFile string, daemon bool) error
 	ShowStatus(watch bool) error
 }

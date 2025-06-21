@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/renancavalcantercb/healthcheck-cli/pkg/env"
 	"github.com/renancavalcantercb/healthcheck-cli/pkg/security"
 	"github.com/renancavalcantercb/healthcheck-cli/pkg/types"
 	"gopkg.in/yaml.v3"
@@ -176,6 +177,11 @@ func LoadConfig(filePath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 	
+	// Expand environment variables in the configuration
+	if err := config.ExpandEnvironmentVariables(); err != nil {
+		return nil, fmt.Errorf("failed to expand environment variables: %w", err)
+	}
+	
 	// Validate and apply defaults
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("config validation failed: %w", err)
@@ -184,6 +190,102 @@ func LoadConfig(filePath string) (*Config, error) {
 	config.ApplyDefaults()
 	
 	return config, nil
+}
+
+// LoadConfigWithEnv loads configuration from a file and optionally loads environment variables from .env file
+func LoadConfigWithEnv(filePath, envPath string) (*Config, error) {
+	// Load .env file if specified
+	if envPath != "" {
+		if err := env.LoadEnvFile(envPath); err != nil {
+			return nil, fmt.Errorf("failed to load environment file: %w", err)
+		}
+	}
+	
+	// Load configuration
+	return LoadConfig(filePath)
+}
+
+// ExpandEnvironmentVariables expands environment variables in the configuration
+func (c *Config) ExpandEnvironmentVariables() error {
+	// Convert config to map for recursive processing
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config for env expansion: %w", err)
+	}
+	
+	var configMap map[string]interface{}
+	if err := yaml.Unmarshal(data, &configMap); err != nil {
+		return fmt.Errorf("failed to unmarshal config for env expansion: %w", err)
+	}
+	
+	// Expand environment variables
+	env.ExpandEnvironmentVariablesInMap(configMap)
+	
+	// Convert back to config struct
+	expandedData, err := yaml.Marshal(configMap)
+	if err != nil {
+		return fmt.Errorf("failed to marshal expanded config: %w", err)
+	}
+	
+	if err := yaml.Unmarshal(expandedData, c); err != nil {
+		return fmt.Errorf("failed to unmarshal expanded config: %w", err)
+	}
+	
+	return nil
+}
+
+// ValidateEnvironmentVariables validates that required environment variables are set
+func (c *Config) ValidateEnvironmentVariables() error {
+	var requiredVars []string
+	
+	// Check email configuration
+	if c.Notifications.Email.Enabled {
+		if strings.Contains(c.Notifications.Email.Password, "${") {
+			requiredVars = append(requiredVars, "EMAIL_PASSWORD")
+		}
+	}
+	
+	// Check Slack configuration
+	if c.Notifications.Slack.Enabled {
+		if strings.Contains(c.Notifications.Slack.WebhookURL, "${") {
+			requiredVars = append(requiredVars, "SLACK_WEBHOOK_URL")
+		}
+	}
+	
+	// Check Discord configuration
+	if c.Notifications.Discord.Enabled {
+		if strings.Contains(c.Notifications.Discord.WebhookURL, "${") {
+			requiredVars = append(requiredVars, "DISCORD_WEBHOOK_URL")
+		}
+	}
+	
+	// Check Telegram configuration
+	if c.Notifications.Telegram.Enabled {
+		if strings.Contains(c.Notifications.Telegram.BotToken, "${") {
+			requiredVars = append(requiredVars, "TELEGRAM_BOT_TOKEN")
+		}
+	}
+	
+	// Check webhook configuration
+	if c.Notifications.Webhook.Enabled {
+		for key, value := range c.Notifications.Webhook.Headers {
+			if strings.Contains(value, "${") {
+				requiredVars = append(requiredVars, strings.ToUpper(key)+"_TOKEN")
+			}
+		}
+	}
+	
+	// Check checks for API tokens in headers
+	for _, check := range c.Checks {
+		for key, value := range check.Headers {
+			if strings.Contains(value, "${") && strings.Contains(strings.ToLower(key), "authorization") {
+				requiredVars = append(requiredVars, "API_TOKEN")
+			}
+		}
+	}
+	
+	// Validate required variables are set
+	return env.ValidateRequiredEnvVars(requiredVars)
 }
 
 // Validate validates the configuration

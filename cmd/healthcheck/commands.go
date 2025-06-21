@@ -40,11 +40,13 @@ func setupCommands(app interfaces.Application) *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			configFile := args[0]
+			envFile, _ := cmd.Flags().GetString("env")
 			daemon, _ := cmd.Flags().GetBool("daemon")
-			return app.LoadConfigAndRun(configFile, daemon)
+			return app.LoadConfigAndRunWithEnv(configFile, envFile, daemon)
 		},
 	}
 	monitorCmd.Flags().BoolP("daemon", "d", false, "Run in daemon mode")
+	monitorCmd.Flags().StringP("env", "e", "", "Environment file (.env) to load variables from")
 
 	// Test command
 	testCmd := &cobra.Command{
@@ -148,9 +150,11 @@ func setupConfigCommands(app interfaces.Application) *cobra.Command {
 		Short: "Validate a configuration file",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return ValidateConfig(args[0])
+			envFile, _ := cmd.Flags().GetString("env")
+			return ValidateConfigWithEnv(args[0], envFile)
 		},
 	}
+	validateCmd.Flags().StringP("env", "e", "", "Environment file (.env) to load variables from")
 
 	exampleCmd := &cobra.Command{
 		Use:   "example [output-file]",

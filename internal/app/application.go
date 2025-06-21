@@ -241,12 +241,30 @@ func (a *Application) QuickCheck(url string, interval time.Duration, daemon bool
 
 // LoadConfigAndRun loads configuration and runs health checks
 func (a *Application) LoadConfigAndRun(configFile string, daemon bool) error {
-	if err := a.configService.Load(configFile); err != nil {
+	return a.LoadConfigAndRunWithEnv(configFile, "", daemon)
+}
+
+// LoadConfigAndRunWithEnv loads configuration with environment variables and runs health checks
+func (a *Application) LoadConfigAndRunWithEnv(configFile, envFile string, daemon bool) error {
+	// Load configuration with environment variables
+	cfg, err := config.LoadConfigWithEnv(configFile, envFile)
+	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 	
-	checks := a.configService.GetChecks()
+	// Update notification manager with new config
+	a.notifier = a.notifier.UpdateConfig(cfg)
+	
+	// Convert to CheckConfig format
+	checks := make([]types.CheckConfig, len(cfg.Checks))
+	for i, check := range cfg.Checks {
+		checks[i] = check.CheckConfig
+	}
+	
 	fmt.Printf("🔧 Loaded configuration from %s\n", configFile)
+	if envFile != "" {
+		fmt.Printf("🔧 Loaded environment variables from %s\n", envFile)
+	}
 	fmt.Printf("📊 Monitoring %d endpoints\n", len(checks))
 	
 	if daemon {
