@@ -66,11 +66,12 @@ func NewApplication(deps Dependencies) *Application {
 
 // NewApplicationWithDefaults creates an application with default dependencies
 func NewApplicationWithDefaults() (*Application, error) {
-	// Initialize storage
-	storage, err := storage.NewSQLiteStorage("./healthcheck.db")
+	// Initialize storage with intelligent fallback
+	storage, err := storage.NewStorageWithDefaults("./healthcheck.db")
 	if err != nil {
-		log.Printf("⚠️  Warning: Failed to initialize storage: %v", err)
+		log.Printf("⚠️  Warning: Failed to initialize any storage: %v", err)
 		log.Println("💡 Continuing without storage (data won't be persisted)")
+		storage = nil
 	}
 	
 	// Initialize checkers
@@ -116,12 +117,20 @@ func (a *Application) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop stops the application
+// Stop stops the application gracefully
 func (a *Application) Stop() error {
-	a.cancel()
+	// Cancel context first
+	if a.cancel != nil {
+		a.cancel()
+	}
 	
+	// Close storage if available
 	if a.storage != nil {
-		return a.storage.Close()
+		if err := a.storage.Close(); err != nil {
+			log.Printf("⚠️  Warning: Failed to close storage gracefully: %v", err)
+			return fmt.Errorf("storage close failed: %w", err)
+		}
+		log.Printf("✅ Storage closed successfully")
 	}
 	
 	return nil

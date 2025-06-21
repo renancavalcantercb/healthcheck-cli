@@ -109,9 +109,16 @@ func ensureSecureFilePermissions(dbPath string) error {
 
 // Close closes the database connection
 func (s *SQLiteStorage) Close() error {
-	if s.db != nil {
-		return s.db.Close()
+	if s == nil {
+		return nil
 	}
+	
+	if s.db != nil {
+		err := s.db.Close()
+		s.db = nil // Prevent double-close
+		return err
+	}
+	
 	return nil
 }
 
@@ -173,7 +180,7 @@ func (s *SQLiteStorage) SaveResult(result types.Result) error {
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	checkType := "http"
-	if result.URL != "" && !contains(result.URL, "http") {
+	if result.URL != "" && !sqliteContains(result.URL, "http") {
 		checkType = "tcp"
 	}
 
@@ -482,14 +489,14 @@ func (s *SQLiteStorage) GetDatabaseInfo() (map[string]interface{}, error) {
 	return info, nil
 }
 
-// Helper function
-func contains(s, substr string) bool {
+// Helper function for SQLite-specific contains logic
+func sqliteContains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || (len(s) > len(substr) && 
 		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || 
-		 findInString(s, substr))))
+		 sqliteFindInString(s, substr))))
 }
 
-func findInString(s, substr string) bool {
+func sqliteFindInString(s, substr string) bool {
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {
 			return true
