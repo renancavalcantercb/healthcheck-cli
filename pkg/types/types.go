@@ -124,6 +124,18 @@ type Result struct {
 	Timestamp    time.Time         `json:"timestamp"`
 	Headers      map[string]string `json:"headers,omitempty"`
 	BodySize     int64             `json:"body_size,omitempty"`
+	CertInfo     *CertInfo         `json:"cert_info,omitempty"`
+}
+
+// CertInfo represents SSL certificate information
+type CertInfo struct {
+	Subject     string    `json:"subject"`
+	Issuer      string    `json:"issuer"`
+	ExpiryDate  time.Time `json:"expiry_date"`
+	DaysToExpiry int      `json:"days_to_expiry"`
+	IsValid     bool      `json:"is_valid"`
+	CommonName  string    `json:"common_name"`
+	DNSNames    []string  `json:"dns_names"`
 }
 
 // IsHealthy returns true if the status indicates a healthy endpoint
@@ -143,6 +155,7 @@ const (
 	CheckTypeHTTP CheckType = "http"
 	CheckTypeTCP  CheckType = "tcp"
 	CheckTypePing CheckType = "ping"
+	CheckTypeSSL  CheckType = "ssl"
 )
 
 // String returns the string representation of CheckType
@@ -173,13 +186,15 @@ type CheckConfig struct {
 
 // Expected defines what constitutes a successful check
 type Expected struct {
-	Status          int           `yaml:"status" json:"status"`
-	StatusRange     []int         `yaml:"status_range" json:"status_range"`
-	BodyContains    string        `yaml:"body_contains" json:"body_contains"`
-	BodyNotContains string        `yaml:"body_not_contains" json:"body_not_contains"`
-	ResponseTimeMax time.Duration `yaml:"response_time_max" json:"response_time_max"`
-	ContentType     string        `yaml:"content_type" json:"content_type"`
-	MinBodySize     int64         `yaml:"min_body_size" json:"min_body_size"`
+	Status           int           `yaml:"status" json:"status"`
+	StatusRange      []int         `yaml:"status_range" json:"status_range"`
+	BodyContains     string        `yaml:"body_contains" json:"body_contains"`
+	BodyNotContains  string        `yaml:"body_not_contains" json:"body_not_contains"`
+	ResponseTimeMax  time.Duration `yaml:"response_time_max" json:"response_time_max"`
+	ContentType      string        `yaml:"content_type" json:"content_type"`
+	MinBodySize      int64         `yaml:"min_body_size" json:"min_body_size"`
+	CertExpiryDays   int           `yaml:"cert_expiry_days" json:"cert_expiry_days"`
+	CertValidDomains []string      `yaml:"cert_valid_domains" json:"cert_valid_domains"`
 }
 
 // RetryConfig defines retry behavior

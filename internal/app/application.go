@@ -78,6 +78,7 @@ func NewApplicationWithDefaults() (*Application, error) {
 	checkers := map[types.CheckType]interfaces.Checker{
 		types.CheckTypeHTTP: checker.NewHTTPChecker(30 * time.Second),
 		types.CheckTypeTCP:  checker.NewTCPChecker(10 * time.Second),
+		types.CheckTypeSSL:  checker.NewSSLChecker(10 * time.Second),
 	}
 	
 	// Initialize notification manager

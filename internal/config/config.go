@@ -341,6 +341,9 @@ func (c *Config) validateCheck(check CheckConfig, index int) error {
 		if strings.Contains(check.URL, "://") {
 			return fmt.Errorf("check[%d]: TCP checks should use host:port format", index)
 		}
+	case types.CheckTypeSSL:
+		// SSL checks can accept both URL format and host:port format
+		// No strict validation needed as the SSL checker handles both
 	}
 	
 	if check.Interval <= 0 {
@@ -525,6 +528,36 @@ func SaveExample(filePath string) error {
 						ContentType:     "application/json",
 					},
 					Tags: []string{"test", "external"},
+				},
+			},
+			{
+				CheckConfig: types.CheckConfig{
+					Name:     "GitHub SSL Certificate",
+					Type:     types.CheckTypeSSL,
+					URL:      "https://github.com",
+					Interval: 24 * time.Hour, // Check once per day
+					Timeout:  10 * time.Second,
+					Expected: types.Expected{
+						CertExpiryDays:   30, // Alert if expires within 30 days
+						CertValidDomains: []string{"github.com", "www.github.com"},
+						ResponseTimeMax:  2 * time.Second,
+					},
+					Tags: []string{"ssl", "external", "critical"},
+				},
+			},
+			{
+				CheckConfig: types.CheckConfig{
+					Name:     "Internal API SSL",
+					Type:     types.CheckTypeSSL,
+					URL:      "api.example.com:443",
+					Interval: 12 * time.Hour, // Check twice per day
+					Timeout:  5 * time.Second,
+					Expected: types.Expected{
+						CertExpiryDays:   14, // Alert if expires within 14 days
+						CertValidDomains: []string{"api.example.com"},
+						ResponseTimeMax:  1 * time.Second,
+					},
+					Tags: []string{"ssl", "internal", "api"},
 				},
 			},
 		},

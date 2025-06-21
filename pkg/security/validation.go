@@ -36,6 +36,46 @@ func ValidateURL(rawURL string) error {
 	return nil
 }
 
+// ValidateSSLTarget validates a target for SSL checks (URL or host:port format)
+func ValidateSSLTarget(target string) error {
+	if target == "" {
+		return fmt.Errorf("target cannot be empty")
+	}
+	
+	// Try to parse as URL first
+	if strings.Contains(target, "://") {
+		parsed, err := url.Parse(target)
+		if err != nil {
+			return fmt.Errorf("invalid URL format: %w", err)
+		}
+		
+		// For SSL checks, allow HTTP and HTTPS schemes
+		if parsed.Scheme != "http" && parsed.Scheme != "https" {
+			return fmt.Errorf("only HTTP and HTTPS schemes are allowed for SSL checks, got: %s", parsed.Scheme)
+		}
+		
+		// Validate hostname
+		if parsed.Hostname() == "" {
+			return fmt.Errorf("URL must have a hostname")
+		}
+		
+		return validateHostnameNotPrivate(parsed.Hostname())
+	}
+	
+	// Try to parse as host:port format
+	host, _, err := net.SplitHostPort(target)
+	if err != nil {
+		// If no port specified, treat as hostname
+		host = target
+	}
+	
+	if host == "" {
+		return fmt.Errorf("hostname cannot be empty")
+	}
+	
+	return validateHostnameNotPrivate(host)
+}
+
 // validateHostnameNotPrivate checks if a hostname resolves to a private IP address
 func validateHostnameNotPrivate(hostname string) error {
 	// Skip validation for localhost in development
