@@ -1,17 +1,16 @@
 # HealthCheck CLI
 
-A powerful command-line tool for monitoring the health of your endpoints with support for HTTP, TCP, and SSL certificate checks, real-time notifications via email and Discord, and a beautiful terminal UI.
+A powerful command-line tool for monitoring the health of your endpoints with support for HTTP and TCP checks, real-time notifications via email and Discord, and a beautiful terminal UI.
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
 ![Go Version](https://img.shields.io/badge/go-1.24.2-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-## Features
+## 🔥 Features
 
 - 🔍 **Multiple Check Types**
-  - HTTP/HTTPS endpoints
-  - TCP ports
-  - SSL certificate monitoring
+  - HTTP/HTTPS endpoints with SSL validation
+  - TCP ports connectivity
   - Custom headers and body
   - Response validation
   - Response time monitoring
@@ -20,22 +19,29 @@ A powerful command-line tool for monitoring the health of your endpoints with su
   - Beautiful terminal UI
   - Status dashboard
   - Response time tracking
-  - Historical data
-  - Parallel execution with worker pool
+  - Historical data with SQLite storage
+  - Concurrent execution with service layer architecture
 
 - 🔔 **Smart Notifications**
-  - Email notifications (SMTP)
+  - Email notifications (SMTP with TLS)
   - Discord webhook integration
   - Configurable notification rules
-  - Cooldown periods
-  - Status-based alerts
+  - Cooldown periods and rate limiting
+  - Status-based alerts with templates
 
 - ⚙️ **Flexible Configuration**
   - YAML configuration files
-  - Environment variable support
+  - Secure file permissions (0600)
   - Default values with overrides
   - Multiple check profiles
-  - Configurable worker pool
+  - Service-oriented architecture
+
+- 🔒 **Security Features**
+  - SSRF protection with URL validation
+  - HTTP header injection prevention
+  - TLS enforcement for SMTP authentication
+  - Secure file permissions
+  - Sensitive data masking in logs
 
 ## Installation
 
@@ -46,31 +52,6 @@ A powerful command-line tool for monitoring the health of your endpoints with su
 curl -sSL https://raw.githubusercontent.com/renancavalcantercb/healthcheck-cli/main/install.sh | bash
 ```
 
-The script will:
-1. **Try to download** the latest release binary (fastest, no dependencies)
-2. **Fallback to build** from source if release download fails (requires Go + Git)
-
-Installation options:
-- **System-wide** (`/usr/local/bin`) - requires sudo
-- **User-local** (`~/.local/bin`) - no sudo required, auto-adds to PATH
-
-### Download Release (Manual)
-
-Download the latest release for your platform from the [releases page](https://github.com/renancavalcantercb/healthcheck-cli/releases):
-
-```bash
-# Example for Linux AMD64
-wget https://github.com/renancavalcantercb/healthcheck-cli/releases/latest/download/healthcheck-linux-amd64.tar.gz
-tar -xzf healthcheck-linux-amd64.tar.gz
-sudo mv healthcheck-linux-amd64 /usr/local/bin/healthcheck
-chmod +x /usr/local/bin/healthcheck
-```
-
-**Supported Platforms:**
-- Linux: `amd64`, `arm64`
-- macOS: `amd64` (Intel), `arm64` (Apple Silicon)
-- Windows: `amd64`
-
 ### From Source
 
 ```bash
@@ -78,7 +59,7 @@ chmod +x /usr/local/bin/healthcheck
 git clone https://github.com/renancavalcantercb/healthcheck-cli.git
 cd healthcheck-cli
 
-# Build the project
+# Build the project (uses service layer architecture)
 make build
 
 # Install (optional)
@@ -92,22 +73,17 @@ make install
 git clone https://github.com/renancavalcantercb/healthcheck-cli.git
 cd healthcheck-cli
 
-# Build with CGO enabled for SQLite support
-CGO_ENABLED=1 go build -o healthcheck cmd/healthcheck/*.go
+# Install dependencies
+make deps
 
-# Install (choose one):
-# Option 1: System-wide (requires sudo)
+# Build with proper package structure
+go build -o healthcheck ./cmd/healthcheck
 sudo mv healthcheck /usr/local/bin/
-
-# Option 2: User-local (no sudo required)
-mkdir -p ~/.local/bin
-mv healthcheck ~/.local/bin/
-export PATH="$PATH:$HOME/.local/bin"  # Add to your shell RC file
 ```
 
-**Note**: The project requires CGO to be enabled for SQLite support. If you get SQLite-related errors, the binary will automatically fall back to file-based storage.
+**Note:** The project requires CGO for SQLite support and uses a modern service layer architecture for better maintainability.
 
-## Quick Start
+## 🚀 Quick Start
 
 1. Generate an example configuration:
 ```bash
@@ -125,15 +101,7 @@ checks:
     expected:
       status: 200
       body_contains: "healthy"
-  
-  - name: "SSL Certificate Check"
-    type: "ssl"
-    url: "https://api.example.com"
-    interval: 24h
-    timeout: 10s
-    expected:
-      cert_expiry_days: 30
-      cert_valid_domains: ["api.example.com"]
+      response_time_max: 2s
 ```
 
 3. Start monitoring:
@@ -141,44 +109,19 @@ checks:
 healthcheck monitor config.yml
 ```
 
-## Check Types
-
-HealthCheck CLI supports three types of monitoring:
-
-### 1. HTTP/HTTPS Checks (`type: http`)
-Monitor web endpoints, APIs, and web services:
-- **Status code validation** (200, 404, etc.)
-- **Response body content** (contains/not contains text)
-- **Response time monitoring**
-- **Custom headers and request body**
-- **Content-Type validation**
-- **Minimum body size checks**
-
-### 2. TCP Port Checks (`type: tcp`)
-Monitor TCP services and port connectivity:
-- **Port connectivity testing**
-- **Connection time monitoring**
-- **Network service availability**
-
-### 3. SSL Certificate Checks (`type: ssl`)
-Monitor SSL/TLS certificate health:
-- **Certificate expiration monitoring**
-- **Domain validation (CN + SAN)**
-- **SSL handshake performance**
-- **Certificate chain validation**
-- **Issuer and subject information**
-
-## Configuration
+## 📋 Configuration
 
 ### Basic Configuration
 
 ```yaml
 global:
-  max_workers: 10        # Maximum number of concurrent checks
+  max_workers: 10        # Concurrent health checks
   default_timeout: 10s
   default_interval: 30s
-  storage_path: "./healthcheck.db"
+  storage_path: "./healthcheck.db"  # SQLite database (secure permissions)
   log_level: "info"
+  disable_colors: false
+  user_agent: "HealthCheck-CLI/1.0"
 
 checks:
   - name: "API Health"
@@ -188,32 +131,19 @@ checks:
     timeout: 10s
     method: "GET"
     headers:
-      Authorization: "Bearer ${API_TOKEN}"
+      Authorization: "Bearer YOUR_TOKEN"  # Note: Use environment variables in production
     expected:
       status: 200
       body_contains: "healthy"
       response_time_max: 2s
-
-  - name: "Database TCP Check"
-    type: "tcp"
-    url: "db.example.com:5432"
-    interval: 60s
-    timeout: 5s
-    expected:
-      response_time_max: 500ms
-
-  - name: "SSL Certificate Monitor"
-    type: "ssl"
-    url: "https://api.example.com"
-    interval: 24h
-    timeout: 10s
-    expected:
-      cert_expiry_days: 30      # Alert if expires within 30 days
-      cert_valid_domains: ["api.example.com", "www.api.example.com"]
-      response_time_max: 5s
+    retry:
+      attempts: 3
+      delay: 2s
+      backoff: "exponential"  # or "linear"
+      max_delay: 30s
 ```
 
-### Email Notifications
+### 🔒 Secure Email Notifications
 
 ```yaml
 notifications:
@@ -222,12 +152,17 @@ notifications:
     smtp_host: "smtp.gmail.com"
     smtp_port: 587
     username: "your-email@gmail.com"
-    password: "${EMAIL_PASSWORD}"  # Use app password for Gmail
+    password: "your-app-password"  # Use app password for Gmail
     from: "your-email@gmail.com"
     to: ["recipient@example.com"]
     subject: "🚨 HealthCheck Alert: {{.Name}}"
-    tls: true
+    tls: true  # Required for authentication (security enhancement)
 ```
+
+**Security Notes:**
+- TLS is **mandatory** when using SMTP authentication
+- Sensitive information is masked in logs
+- Use app passwords instead of account passwords
 
 ### Discord Notifications
 
@@ -235,49 +170,10 @@ notifications:
 notifications:
   discord:
     enabled: true
-    webhook_url: "${DISCORD_WEBHOOK_URL}"
+    webhook_url: "https://discord.com/api/webhooks/YOUR_WEBHOOK"  # Masked in logs
     username: "HealthCheck Bot"
     avatar_url: "https://raw.githubusercontent.com/renancavalcantercb/healthcheck-cli/main/assets/logo.png"
 ```
-
-### SSL Certificate Monitoring
-
-Monitor SSL certificates for expiration and validity:
-
-```yaml
-checks:
-  - name: "Production API SSL"
-    type: "ssl"
-    url: "https://api.production.com"
-    interval: 12h                    # Check twice daily
-    timeout: 10s
-    expected:
-      cert_expiry_days: 14          # Alert if expires within 14 days
-      cert_valid_domains:           # Verify certificate covers these domains
-        - "api.production.com"
-        - "www.api.production.com"
-      response_time_max: 3s         # Alert if SSL handshake is slow
-    tags: ["ssl", "production", "critical"]
-
-  # Alternative host:port format
-  - name: "Database SSL"
-    type: "ssl"
-    url: "db.internal.com:5432"
-    interval: 24h
-    timeout: 5s
-    expected:
-      cert_expiry_days: 30
-      cert_valid_domains: ["db.internal.com"]
-      response_time_max: 2s
-    tags: ["ssl", "database"]
-```
-
-**SSL Check Features:**
-- **Certificate expiration monitoring** - Get alerts before certificates expire
-- **Domain validation** - Ensure certificates cover expected domains (CN + SAN)
-- **SSL handshake performance** - Monitor connection establishment time
-- **Detailed certificate info** - Subject, issuer, expiry date, and valid domains
-- **Flexible URL formats** - Support both `https://domain.com` and `domain.com:443`
 
 ### Notification Rules
 
@@ -293,23 +189,7 @@ notifications:
     escalation_delay: 15m
 ```
 
-### Performance Optimization
-
-The tool uses a worker pool to execute health checks in parallel, which significantly improves performance when monitoring multiple endpoints. You can configure the number of concurrent workers in the global settings:
-
-```yaml
-global:
-  max_workers: 10  # Adjust based on your system's capabilities
-```
-
-Key benefits of parallel execution:
-- Faster overall execution time
-- Better resource utilization
-- Configurable concurrency level
-- Automatic load balancing
-- Graceful error handling
-
-## Usage
+## 🔧 Usage
 
 ### Monitor Endpoints
 
@@ -317,18 +197,17 @@ Key benefits of parallel execution:
 # Monitor with configuration file
 healthcheck monitor config.yml
 
-# Run in daemon mode
+# Run in daemon mode (background monitoring)
 healthcheck monitor config.yml --daemon
 
 # Quick check single endpoint
 healthcheck quick https://api.example.com/health
 
-# Test endpoint immediately
-healthcheck test https://api.example.com/health
+# Quick check with custom interval
+healthcheck quick https://api.example.com/health --interval 10s --daemon
 
-# Test SSL certificate
-healthcheck test https://github.com  # Will use HTTP checker
-# For dedicated SSL certificate testing, use configuration files
+# Test endpoint immediately
+healthcheck test https://api.example.com/health --timeout 5s --verbose
 ```
 
 ### View Status
@@ -337,14 +216,14 @@ healthcheck test https://github.com  # Will use HTTP checker
 # Show status dashboard
 healthcheck status
 
-# Interactive dashboard
+# Interactive dashboard (real-time)
 healthcheck status --watch
 
 # With specific config
 healthcheck status --config config.yml
 ```
 
-### Statistics
+### Statistics & Analytics
 
 ```bash
 # Show stats for all services
@@ -356,111 +235,162 @@ healthcheck stats "API Health"
 # Show stats since duration
 healthcheck stats --since 24h
 
-# JSON output
+# JSON output for integrations
 healthcheck stats --json
+
+# Show historical data
+healthcheck history "API Health" --limit 100 --since 7d
+
+# Database information
+healthcheck db-info
 ```
 
-## Environment Variables
+### Configuration Management
 
-The following environment variables can be used in the configuration:
+```bash
+# Validate configuration file
+healthcheck config validate config.yml
 
-- `${API_TOKEN}` - API authentication token
-- `${EMAIL_PASSWORD}` - Email password
-- `${DISCORD_WEBHOOK_URL}` - Discord webhook URL
+# Generate example configuration
+healthcheck config example
+healthcheck config example custom-config.yml
+```
 
-## Commands
+## 🏗️ Architecture
 
-- `quick [URL]` - Quickly check a single endpoint
-- `monitor [config-file]` - Monitor endpoints using a configuration file
-- `test [URL]` - Test a single endpoint immediately
-- `status` - Show status dashboard
-- `config` - Configuration management
-- `stats [service-name]` - Show statistics from stored data
-- `history [service-name]` - Show historical data for a service
-- `db-info` - Show database information
-- `version` - Show version information
+The application uses a modern **service layer architecture** with the following components:
 
-## Development
+```
+├── cmd/healthcheck/          # CLI interface
+├── internal/
+│   ├── app/                 # Application orchestration
+│   ├── services/            # Business logic layer
+│   │   ├── healthcheck.go   # Health check service
+│   │   ├── stats.go         # Statistics service
+│   │   └── config.go        # Configuration service
+│   ├── checker/             # Health check implementations
+│   ├── storage/             # Data persistence (SQLite)
+│   ├── notifications/       # Notification providers
+│   └── tui/                # Terminal UI
+├── pkg/
+│   ├── interfaces/          # Service interfaces
+│   ├── types/              # Shared types
+│   └── security/           # Security utilities
+```
+
+### Key Benefits:
+- **Dependency Injection**: Easy testing and mocking
+- **Interface-driven**: Pluggable components
+- **Concurrent Safe**: Proper goroutine management
+- **Context Propagation**: Cancellation and timeouts
+- **Security First**: Input validation and secure defaults
+
+## 🔒 Security Features
+
+### Input Validation
+- **URL Validation**: Prevents SSRF attacks
+- **Header Validation**: Prevents injection attacks
+- **Path Validation**: Prevents directory traversal
+
+### Secure Communications
+- **TLS Enforcement**: Required for SMTP authentication
+- **Certificate Validation**: SSL/TLS certificates verified
+- **Redirect Limits**: Maximum 5 redirects to prevent loops
+
+### Data Protection
+- **File Permissions**: Database and config files use 0600 permissions
+- **Log Masking**: Sensitive data masked in logs
+- **Secure Defaults**: Security-first configuration
+
+## 📊 Commands Reference
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `quick [URL]` | Quick endpoint check | `healthcheck quick https://api.com` |
+| `monitor [config]` | Configuration-based monitoring | `healthcheck monitor config.yml` |
+| `test [URL]` | Immediate endpoint test | `healthcheck test https://api.com` |
+| `status` | Status dashboard | `healthcheck status --watch` |
+| `stats [service]` | Show statistics | `healthcheck stats "API Health"` |
+| `history [service]` | Historical data | `healthcheck history "API" --since 24h` |
+| `config validate` | Validate configuration | `healthcheck config validate config.yml` |
+| `config example` | Generate example config | `healthcheck config example` |
+| `db-info` | Database information | `healthcheck db-info` |
+| `version` | Show version | `healthcheck version` |
+
+## 🛠️ Development
+
+### Building
 
 ```bash
 # Install dependencies
 make deps
 
-# Build for current platform
-make build
+# Clean and build
+make clean && make build
 
-# Build for all platforms (requires cross-compilation setup)
+# Build for multiple platforms
 make build-all
+```
 
-# Build release archive for current platform
-make build-releases
+### Code Quality
 
-# Run tests
-make test
-
-# Run with coverage
-make test-coverage
-
-# Development mode
-make dev
-
+```bash
 # Format code
 make fmt
 
-# Lint code
-make lint
+# Tidy dependencies
+make tidy
+
+# Clean build artifacts
+make clean
 ```
 
-### Creating Releases
-
-For maintainers, to create a new release:
+### Testing
 
 ```bash
-# Use the release helper script
-./release.sh v1.0.0
+# Note: Comprehensive test suite is planned for next release
+# Current: Manual testing with real endpoints
 
-# Or manually:
-git tag -a v1.0.0 -m "Release v1.0.0"
-git push origin v1.0.0
+# Quick test
+make run
+
+# Development with example
+make dev
 ```
 
-This will trigger GitHub Actions to automatically build cross-platform binaries and create a GitHub release.
-
-## Troubleshooting
-
-### Installation Issues
-
-**Problem**: `mv: No such file or directory` during installation
-- **Solution**: The binary build failed. Check that Go 1.21+ is installed and try building manually
-
-**Problem**: `SQLite requires CGO but binary was compiled with CGO_ENABLED=0`
-- **Solution**: This is expected when using pre-built release binaries. The tool will automatically fall back to JSON file storage with the same functionality
-
-**Problem**: `command not found: healthcheck` after installation
-- **Solution**: If installed locally, restart your terminal or run `source ~/.zshrc` (or your shell's RC file)
-
-### Common Configuration Issues
-
-**Problem**: SSL checks showing validation errors for `host:port` format
-- **Solution**: Ensure the hostname resolves properly. Use `https://domain.com` format if needed
-
-**Problem**: Notifications not working
-- **Solution**: Check that environment variables are set correctly and notification services are enabled
-
-## Contributing
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+3. Follow the service layer architecture patterns
+4. Ensure security best practices
+5. Commit your changes (`git commit -m 'Add some amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
 
-## License
+### Architecture Guidelines
+- Use dependency injection for services
+- Implement interfaces for testability
+- Follow security-first principles
+- Add proper error handling with context
+
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgments
+## 🙏 Acknowledgments
 
 - [Cobra](https://github.com/spf13/cobra) - CLI framework
 - [Bubble Tea](https://github.com/charmbracelet/bubbletea) - Terminal UI framework
-- [go-sqlite3](https://github.com/mattn/go-sqlite3) - SQLite driver 
+- [go-sqlite3](https://github.com/mattn/go-sqlite3) - SQLite driver
+- [Lipgloss](https://github.com/charmbracelet/lipgloss) - Terminal styling
+
+## 🔮 Roadmap
+
+- [ ] Comprehensive test coverage
+- [ ] Environment variable support for secrets
+- [ ] Circuit breaker patterns
+- [ ] Structured logging
+- [ ] Metrics and observability
+- [ ] Plugin architecture
+- [ ] Multi-storage backends
