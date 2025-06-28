@@ -85,13 +85,30 @@ func NewApplicationWithDefaults() (*Application, error) {
 	defaultConfig := config.DefaultConfig()
 	notifier := notifications.NewManager(defaultConfig)
 	
-	deps := Dependencies{
-		Storage:  storage,
-		Notifier: notifier,
-		Checkers: checkers,
-	}
+	// Create health check service with rate limiting and circuit breaking
+	healthCheckService := services.NewHealthCheckServiceWithConfig(
+		checkers,
+		storage,
+		notifier,
+		defaultConfig.Global.RateLimit,
+		defaultConfig.Global.CircuitBreaker,
+	)
 	
-	app := NewApplication(deps)
+	// Create other services
+	statsService := services.NewStatsService(storage)
+	configService := services.NewConfigService()
+	
+	ctx, cancel := context.WithCancel(context.Background())
+	
+	app := &Application{
+		healthCheckService: healthCheckService,
+		statsService:       statsService,
+		configService:      configService,
+		storage:            storage,
+		notifier:           notifier,
+		ctx:                ctx,
+		cancel:             cancel,
+	}
 	
 	// Start background cleanup if storage is available
 	if storage != nil {
@@ -386,7 +403,9 @@ func (a *Application) printResult(result types.Result, verbose bool) {
 }
 
 func (a *Application) runTUIDashboard(checks []types.CheckConfig) error {
-	model := tui.New()
+	// Get memory configuration from config service
+	globalConfig := a.configService.GetGlobalConfig()
+	model := tui.NewWithConfig(globalConfig.MemoryManagement)
 	program := tea.NewProgram(model, tea.WithAltScreen())
 	
 	resultsChan := make(chan []types.Result, 10)

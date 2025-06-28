@@ -6,15 +6,43 @@ import (
 
 // GlobalConfig contains global application settings
 type GlobalConfig struct {
-	MaxWorkers        int           `yaml:"max_workers"`
-	DefaultTimeout    time.Duration `yaml:"default_timeout"`
-	DefaultInterval   time.Duration `yaml:"default_interval"`
-	StoragePath       string        `yaml:"storage_path"`
-	LogLevel          string        `yaml:"log_level"`
-	DisableColors     bool          `yaml:"disable_colors"`
-	UserAgent         string        `yaml:"user_agent"`
-	MaxRetries        int           `yaml:"max_retries"`
-	RetryDelay        time.Duration `yaml:"retry_delay"`
+	MaxWorkers        int                     `yaml:"max_workers"`
+	DefaultTimeout    time.Duration           `yaml:"default_timeout"`
+	DefaultInterval   time.Duration           `yaml:"default_interval"`
+	StoragePath       string                  `yaml:"storage_path"`
+	LogLevel          string                  `yaml:"log_level"`
+	DisableColors     bool                    `yaml:"disable_colors"`
+	UserAgent         string                  `yaml:"user_agent"`
+	MaxRetries        int                     `yaml:"max_retries"`
+	RetryDelay        time.Duration           `yaml:"retry_delay"`
+	RateLimit         RateLimitConfig         `yaml:"rate_limit"`
+	CircuitBreaker    CircuitBreakerConfig    `yaml:"circuit_breaker"`
+	MemoryManagement  MemoryManagementConfig  `yaml:"memory_management"`
+}
+
+// RateLimitConfig contains rate limiting configuration
+type RateLimitConfig struct {
+	Enabled       bool      `yaml:"enabled"`
+	DefaultLimit  float64   `yaml:"default_limit"`  // requests per second
+	DefaultBurst  int       `yaml:"default_burst"`  // burst capacity
+	PerEndpoint   bool      `yaml:"per_endpoint"`   // enable per-endpoint limiting
+}
+
+// CircuitBreakerConfig contains circuit breaker configuration
+type CircuitBreakerConfig struct {
+	Enabled          bool          `yaml:"enabled"`
+	MaxFailures      int           `yaml:"max_failures"`       // failures before opening circuit
+	Timeout          time.Duration `yaml:"timeout"`            // time before trying half-open
+	SuccessThreshold int           `yaml:"success_threshold"`  // successes needed to close circuit
+}
+
+// MemoryManagementConfig contains memory management settings
+type MemoryManagementConfig struct {
+	Enabled                bool          `yaml:"enabled"`
+	MaxHistoryPerService   int           `yaml:"max_history_per_service"`   // max entries per service
+	MaxHistoryAge          time.Duration `yaml:"max_history_age"`           // max age of history entries
+	CleanupInterval        time.Duration `yaml:"cleanup_interval"`          // how often to run cleanup
+	MaxTotalMemoryMB       int           `yaml:"max_total_memory_mb"`       // total memory limit in MB
 }
 
 // ServiceStats represents aggregated statistics for a service

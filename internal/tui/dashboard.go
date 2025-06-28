@@ -78,16 +78,18 @@ var (
 )
 
 type Model struct {
-	results     []types.Result
-	lastUpdate  time.Time
-	width       int
-	height      int
-	sortBy      string
-	filterBy    string
-	showHelp    bool
-	refreshRate time.Duration
-	stats       Stats
-	history     map[string][]types.Result
+	results       []types.Result
+	lastUpdate    time.Time
+	width         int
+	height        int
+	sortBy        string
+	filterBy      string
+	showHelp      bool
+	refreshRate   time.Duration
+	stats         Stats
+	history       map[string][]types.Result
+	memoryConfig  types.MemoryManagementConfig
+	lastCleanup   time.Time
 }
 
 type Stats struct {
@@ -102,13 +104,28 @@ type Stats struct {
 type TickMsg time.Time
 
 func New() Model {
+	// Default memory configuration if none provided
+	defaultMemConfig := types.MemoryManagementConfig{
+		Enabled:                true,
+		MaxHistoryPerService:   100,
+		MaxHistoryAge:          24 * time.Hour,
+		CleanupInterval:        5 * time.Minute,
+		MaxTotalMemoryMB:       100,
+	}
+	
+	return NewWithConfig(defaultMemConfig)
+}
+
+func NewWithConfig(memConfig types.MemoryManagementConfig) Model {
 	return Model{
-		results:     make([]types.Result, 0),
-		lastUpdate:  time.Now(),
-		sortBy:      "name",
-		filterBy:    "all",
-		refreshRate: 5 * time.Second,
-		history:     make(map[string][]types.Result),
+		results:       make([]types.Result, 0),
+		lastUpdate:    time.Now(),
+		sortBy:        "name",
+		filterBy:      "all",
+		refreshRate:   5 * time.Second,
+		history:       make(map[string][]types.Result),
+		memoryConfig:  memConfig,
+		lastCleanup:   time.Now(),
 	}
 }
 
@@ -186,18 +203,141 @@ func (m *Model) updateResults(results []types.Result) {
 	m.results = results
 	m.calculateStats()
 
-	// Update history for each result
+	// Update history for each result with memory management
 	for _, result := range results {
 		if _, exists := m.history[result.Name]; !exists {
-			m.history[result.Name] = make([]types.Result, 0, 100)
+			initialCapacity := m.memoryConfig.MaxHistoryPerService
+			if initialCapacity <= 0 {
+				initialCapacity = 100
+			}
+			m.history[result.Name] = make([]types.Result, 0, initialCapacity)
 		}
 
-		// Keep last 100 results
-		history := m.history[result.Name]
+		// Add new result and manage history size
+		m.addToHistory(result.Name, result)
+	}
+
+	// Perform cleanup if needed
+	m.performCleanupIfNeeded()
+}
+
+func (m *Model) addToHistory(serviceName string, result types.Result) {
+	if !m.memoryConfig.Enabled {
+		// If memory management is disabled, use simple approach
+		history := m.history[serviceName]
 		if len(history) >= 100 {
 			history = history[1:]
 		}
-		m.history[result.Name] = append(history, result)
+		m.history[serviceName] = append(history, result)
+		return
+	}
+
+	history := m.history[serviceName]
+	maxSize := m.memoryConfig.MaxHistoryPerService
+	if maxSize <= 0 {
+		maxSize = 100
+	}
+
+	// Remove oldest entries if we exceed the limit
+	if len(history) >= maxSize {
+		// Remove oldest entries
+		removeCount := len(history) - maxSize + 1
+		history = history[removeCount:]
+	}
+
+	// Add new result
+	m.history[serviceName] = append(history, result)
+}
+
+func (m *Model) performCleanupIfNeeded() {
+	if !m.memoryConfig.Enabled {
+		return
+	}
+
+	now := time.Now()
+	
+	// Check if it's time for cleanup
+	if now.Sub(m.lastCleanup) < m.memoryConfig.CleanupInterval {
+		return
+	}
+
+	m.performMemoryCleanup()
+	m.lastCleanup = now
+}
+
+func (m *Model) performMemoryCleanup() {
+	if !m.memoryConfig.Enabled {
+		return
+	}
+
+	now := time.Now()
+	maxAge := m.memoryConfig.MaxHistoryAge
+	
+	// Clean up old entries based on age
+	for serviceName, history := range m.history {
+		if len(history) == 0 {
+			continue
+		}
+
+		// Find the first entry that's not too old
+		firstValidIndex := 0
+		for i, result := range history {
+			if maxAge > 0 && now.Sub(result.Timestamp) > maxAge {
+				firstValidIndex = i + 1
+			} else {
+				break
+			}
+		}
+
+		// Remove old entries if any were found
+		if firstValidIndex > 0 {
+			if firstValidIndex >= len(history) {
+				// All entries are too old, keep empty slice
+				m.history[serviceName] = make([]types.Result, 0, m.memoryConfig.MaxHistoryPerService)
+			} else {
+				// Keep only the recent entries
+				m.history[serviceName] = history[firstValidIndex:]
+			}
+		}
+	}
+
+	// Remove empty service histories to free memory
+	for serviceName, history := range m.history {
+		if len(history) == 0 {
+			delete(m.history, serviceName)
+		}
+	}
+}
+
+// GetMemoryStats returns current memory usage statistics
+func (m *Model) GetMemoryStats() map[string]interface{} {
+	totalEntries := 0
+	serviceCount := len(m.history)
+	
+	oldestEntry := time.Now()
+	newestEntry := time.Time{}
+	
+	for _, history := range m.history {
+		totalEntries += len(history)
+		for _, result := range history {
+			if result.Timestamp.Before(oldestEntry) {
+				oldestEntry = result.Timestamp
+			}
+			if result.Timestamp.After(newestEntry) {
+				newestEntry = result.Timestamp
+			}
+		}
+	}
+
+	return map[string]interface{}{
+		"total_entries":   totalEntries,
+		"service_count":   serviceCount,
+		"oldest_entry":    oldestEntry,
+		"newest_entry":    newestEntry,
+		"last_cleanup":    m.lastCleanup,
+		"memory_enabled":  m.memoryConfig.Enabled,
+		"max_per_service": m.memoryConfig.MaxHistoryPerService,
+		"max_age":         m.memoryConfig.MaxHistoryAge,
 	}
 }
 

@@ -22,15 +22,18 @@ type Config struct {
 
 // GlobalConfig contains global settings
 type GlobalConfig struct {
-	MaxWorkers        int           `yaml:"max_workers"`
-	DefaultTimeout    time.Duration `yaml:"default_timeout"`
-	DefaultInterval   time.Duration `yaml:"default_interval"`
-	StoragePath       string        `yaml:"storage_path"`
-	LogLevel          string        `yaml:"log_level"`
-	DisableColors     bool          `yaml:"disable_colors"`
-	UserAgent         string        `yaml:"user_agent"`
-	MaxRetries        int           `yaml:"max_retries"`
-	RetryDelay        time.Duration `yaml:"retry_delay"`
+	MaxWorkers        int                           `yaml:"max_workers"`
+	DefaultTimeout    time.Duration                 `yaml:"default_timeout"`
+	DefaultInterval   time.Duration                 `yaml:"default_interval"`
+	StoragePath       string                        `yaml:"storage_path"`
+	LogLevel          string                        `yaml:"log_level"`
+	DisableColors     bool                          `yaml:"disable_colors"`
+	UserAgent         string                        `yaml:"user_agent"`
+	MaxRetries        int                           `yaml:"max_retries"`
+	RetryDelay        time.Duration                 `yaml:"retry_delay"`
+	RateLimit         types.RateLimitConfig         `yaml:"rate_limit"`
+	CircuitBreaker    types.CircuitBreakerConfig    `yaml:"circuit_breaker"`
+	MemoryManagement  types.MemoryManagementConfig  `yaml:"memory_management"`
 }
 
 // CheckConfig wraps the types.CheckConfig with YAML tags
@@ -120,6 +123,25 @@ func DefaultConfig() *Config {
 			UserAgent:       "HealthCheck-CLI/1.0",
 			MaxRetries:      3,
 			RetryDelay:      5 * time.Second,
+			RateLimit: types.RateLimitConfig{
+				Enabled:      true,
+				DefaultLimit: 1.0, // 1 request per second by default
+				DefaultBurst: 5,   // Allow burst of 5 requests
+				PerEndpoint:  true, // Enable per-endpoint rate limiting
+			},
+			CircuitBreaker: types.CircuitBreakerConfig{
+				Enabled:          true,
+				MaxFailures:      5,                // Open circuit after 5 failures
+				Timeout:          60 * time.Second, // Wait 60 seconds before trying again
+				SuccessThreshold: 3,                // Need 3 successes to close circuit
+			},
+			MemoryManagement: types.MemoryManagementConfig{
+				Enabled:                true,
+				MaxHistoryPerService:   100,                // Keep last 100 results per service
+				MaxHistoryAge:          24 * time.Hour,     // Remove results older than 24 hours
+				CleanupInterval:        5 * time.Minute,    // Run cleanup every 5 minutes
+				MaxTotalMemoryMB:       100,                // Limit total memory usage to 100MB
+			},
 		},
 		Notifications: Notifications{
 			GlobalRules: NotificationRules{

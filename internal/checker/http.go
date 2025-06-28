@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/renancavalcantercb/healthcheck-cli/pkg/errors"
 	"github.com/renancavalcantercb/healthcheck-cli/pkg/security"
 	"github.com/renancavalcantercb/healthcheck-cli/pkg/types"
 )
@@ -64,16 +65,22 @@ func (h *HTTPChecker) Check(check types.CheckConfig) types.Result {
 	
 	// Validate URL for security (prevent SSRF)
 	if err := security.ValidateURL(check.URL); err != nil {
+		validationErr := errors.NewValidationError("URL validation failed", err.Error()).
+			WithContext("url", check.URL).
+			WithComponent("HTTPChecker")
 		result.Status = types.StatusError
-		result.Error = fmt.Sprintf("URL validation failed: %v", err)
+		result.Error = validationErr.Error()
 		result.ResponseTime = time.Since(start)
 		return result
 	}
 	
 	// Validate headers for security (prevent injection)
 	if err := security.ValidateHTTPHeaders(check.Headers); err != nil {
+		validationErr := errors.NewValidationError("Header validation failed", err.Error()).
+			WithContext("headers", check.Headers).
+			WithComponent("HTTPChecker")
 		result.Status = types.StatusError
-		result.Error = fmt.Sprintf("Header validation failed: %v", err)
+		result.Error = validationErr.Error()
 		result.ResponseTime = time.Since(start)
 		return result
 	}
@@ -85,8 +92,12 @@ func (h *HTTPChecker) Check(check types.CheckConfig) types.Result {
 	// Create HTTP request
 	req, err := http.NewRequestWithContext(ctx, check.Method, check.URL, strings.NewReader(check.Body))
 	if err != nil {
+		internalErr := errors.NewInternalError("Failed to create HTTP request", err).
+			WithContext("method", check.Method).
+			WithContext("url", check.URL).
+			WithComponent("HTTPChecker")
 		result.Status = types.StatusError
-		result.Error = fmt.Sprintf("Failed to create request: %v", err)
+		result.Error = internalErr.Error()
 		result.ResponseTime = time.Since(start)
 		return result
 	}
@@ -107,8 +118,21 @@ func (h *HTTPChecker) Check(check types.CheckConfig) types.Result {
 	result.ResponseTime = duration
 	
 	if err != nil {
+		// Determine if this is a timeout or network error
+		var healthErr *errors.HealthCheckError
+		if ctx.Err() == context.DeadlineExceeded {
+			healthErr = errors.NewTimeoutError("HTTP request timed out", check.Timeout).
+				WithContext("url", check.URL).
+				WithComponent("HTTPChecker")
+		} else {
+			healthErr = errors.NewNetworkError("HTTP request failed", 0).
+				WithCause(err).
+				WithContext("url", check.URL).
+				WithComponent("HTTPChecker")
+		}
+		
 		result.Status = types.StatusDown
-		result.Error = fmt.Sprintf("Request failed: %v", err)
+		result.Error = healthErr.Error()
 		return result
 	}
 	defer func() {

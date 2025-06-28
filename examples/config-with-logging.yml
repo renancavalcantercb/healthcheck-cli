@@ -1,0 +1,49 @@
+# Example configuration with logging enabled
+app:
+  name: "healthcheck-cli"
+  version: "1.0.0"
+
+# Logging configuration
+logging:
+  level: "info"        # debug, info, warn, error
+  format: "json"       # json, text
+  output: "stdout"     # stdout, stderr, or file path (/var/log/healthcheck.log)
+
+# Database configuration
+database:
+  path: "healthcheck.db"
+
+# Health checks configuration
+checks:
+  - id: "api-server"
+    type: "http"
+    url: "https://api.example.com/health"
+    interval: "30s"
+    timeout: "10s"
+    expected_status: 200
+    
+  - id: "database"
+    type: "tcp"
+    host: "localhost"
+    port: 5432
+    interval: "60s"
+    timeout: "5s"
+
+# Notification configuration
+notifications:
+  discord:
+    webhook_url: "https://discord.com/api/webhooks/..."
+    enabled: true
+    
+  email:
+    smtp_host: "smtp.gmail.com"
+    smtp_port: 587
+    username: "your-email@gmail.com"
+    password: "your-app-password"
+    to: ["admin@example.com"]
+    enabled: false
+
+# Dashboard configuration
+dashboard:
+  refresh_interval: "5s"
+  theme: "dark"
